@@ -182,16 +182,16 @@ namespace Uml.Robotics.Ros
                 {
                     if (def == null)
                     {
-                        dest=default(T);
+                        dest = default(T);
                         return false;
                     }
                     dest = def;
                     return true;
                 }
 
-                if (typeof(T) == typeof(int))
+                if (typeof(T) == typeof(double))
                 {
-                    dest = (T)(object)v.GetInt();
+                    dest = (T)(object)v.GetDouble();
                 }
                 else if (typeof(T) == typeof(string))
                 {
@@ -253,13 +253,13 @@ namespace Uml.Robotics.Ros
         public static async Task<string> GetStringAsync(string key) =>
             (await GetParamCheckedAsync(key)).GetString();
 
-        public static  async Task<DateTime> GetDateTimeAsync(string key)
+        public static async Task<DateTime> GetDateTimeAsync(string key)
         {
             var rpcResult = await GetParamTypeCheckedAsync(key, XmlRpcType.DateTime);
             return rpcResult.GetDateTime();
         }
 
-        public static  async Task<byte[]> GetBinaryAsync(string key)
+        public static async Task<byte[]> GetBinaryAsync(string key)
         {
             var rpcResult = await GetParamTypeCheckedAsync(key, XmlRpcType.Base64);
             return rpcResult.GetBinary();
