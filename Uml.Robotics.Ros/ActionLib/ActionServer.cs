@@ -186,6 +186,9 @@ namespace Uml.Robotics.Ros.ActionLib
                 }
             }
 
+            statusArray.status_list = goalStatuses.ToArray();
+            goalStatusPublisher.publish(statusArray);
+
             foreach (string id in idsToBeRemoved)
             {
                 goalHandles.Remove(id);
@@ -206,7 +209,7 @@ namespace Uml.Robotics.Ros.ActionLib
             {
                 var timeZero = DateTime.UtcNow;
 
-                foreach(var valuePair in goalHandles)
+                foreach (var valuePair in goalHandles)
                 {
                     var goalHandle = valuePair.Value;
                     if ((ROS.GetTime(goalId.stamp) == timeZero) || (ROS.GetTime(goalHandle.GoalId.stamp) < ROS.GetTime(goalId.stamp)))
@@ -217,7 +220,8 @@ namespace Uml.Robotics.Ros.ActionLib
                         }
                     }
                 }
-            } else
+            }
+            else
             {
                 ServerGoalHandle<TGoal, TResult, TFeedback> goalHandle;
                 var foundGoalHandle = goalHandles.TryGetValue(goalId.id, out goalHandle);
@@ -227,7 +231,8 @@ namespace Uml.Robotics.Ros.ActionLib
                     {
                         cancelCallback(goalHandle);
                     }
-                } else
+                }
+                else
                 {
                     // We have not received the goal yet, prepare to cancel goal when it is received
                     var goalStatus = new GoalStatus();
@@ -271,7 +276,8 @@ namespace Uml.Robotics.Ros.ActionLib
                     observedGoalHandle.GoalStatus.status = GoalStatus.RECALLED;
                     PublishResult(observedGoalHandle.GoalStatus, null); // Empty result
                 }
-            } else
+            }
+            else
             {
                 // Create and register new goal handle
                 GoalStatus goalStatus = new GoalStatus();
