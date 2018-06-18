@@ -104,7 +104,8 @@ namespace Uml.Robotics.Ros
                     throw new NullReferenceException("XmlRpcManager is not initialized yet!");
                 }
 
-                lock (functionsGate)
+                Thread.Yield();
+                lock (functionsGate) // JN: Why is it needed to protect server.Work with functionsGate?
                 {
                     server.Work(TimeSpan.FromMilliseconds(1));
                 }

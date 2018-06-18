@@ -42,7 +42,7 @@ namespace Uml.Robotics.XmlRpc
         {
             foreach (var record in sources.Where(x => x.Client == source))
             {
-                record.Mask |= eventMask;   
+                record.Mask |= eventMask;
             }
         }
 
@@ -121,6 +121,7 @@ namespace Uml.Robotics.XmlRpc
                     if (!src.KeepOpen)
                         src.Close();
                 }
+                toRemove.Clear();
 
                 // check whether end time has been passed
                 if (DateTime.UtcNow > endTime)

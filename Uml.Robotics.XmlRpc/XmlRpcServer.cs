@@ -276,6 +276,7 @@ namespace Uml.Robotics.XmlRpc
                 "HTTP/1.1 200 OK\r\n" +
                 "Server: {0}\r\n" +
                 "Content-Type: text/xml\r\n" +
+                "Connection: Close\r\n" +
                 "Content-length: {1}\r\n\r\n",
                 XMLRPC_VERSION,
                 body.Length
