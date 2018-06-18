@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Uml.Robotics.Ros
 {
@@ -60,8 +61,8 @@ namespace Uml.Robotics.Ros
                 }
                 catch { }
 
-               Method = value.GetMethodInfo();
-               Target = value.Target;
+                Method = value.GetMethodInfo();
+                Target = value.Target;
                 _op = value;
             }
         }
@@ -88,8 +89,8 @@ namespace Uml.Robotics.Ros
         {
             while (ROS.ok && !disposed)
             {
-                resetEvent.WaitOne();
-                if (ROS.ok && !disposed)
+                var triggered = resetEvent.WaitOne(250);
+                if (triggered && ROS.ok && !disposed)
                     Op();
             }
             thread = null;
@@ -107,10 +108,10 @@ namespace Uml.Robotics.Ros
         {
             SignalEvent -= ContinueThreads;
             disposed = true;
-            do
-            {
-                ContinueThreads();
-            } while (thread != null && !thread.Join(1));
+            //do
+            //{
+            ContinueThreads();
+            //} while (thread != null && !thread.Join(1));
         }
     }
 
@@ -172,6 +173,18 @@ namespace Uml.Robotics.Ros
         {
             lock (signal_mutex)
             {
+                var list = signals.Where((s) => s.Op == poll).ToList();
+                foreach (var signal in list)
+                {
+                    try
+                    {
+                        signal.Dispose();
+                    }
+                    catch (Exception e)
+                    {
+                        ROS.Error()("Could not dispose PollSignal: " + e.Message);
+                    }
+                }
                 signals.RemoveAll((s) => s.Op == poll);
             }
             CallSignal();

@@ -93,6 +93,7 @@ namespace Uml.Robotics.Ros
                 {
                     if (Dropped)
                         return;
+                    PollManager.Instance.RemovePollThreadListener(processPublishQueue);
                     Dropped = true;
                 }
             }
@@ -156,9 +157,9 @@ namespace Uml.Robotics.Ros
                 error_message = msg;
                 return false;
             }
-            md5sum = (string) header.Values["md5sum"];
-            topic = (string) header.Values["topic"];
-            client_callerid = (string) header.Values["callerid"];
+            md5sum = (string)header.Values["md5sum"];
+            topic = (string)header.Values["topic"];
+            client_callerid = (string)header.Values["callerid"];
             if (Dropped)
             {
                 string msg = "Received a tcpros connection for a nonexistent topic [" + topic + "] from [" +
@@ -170,7 +171,7 @@ namespace Uml.Robotics.Ros
 
             if (Md5sum != md5sum && (md5sum != "*") && Md5sum != "*")
             {
-                string datatype = header.Values.ContainsKey("type") ? (string) header.Values["type"] : "unknown";
+                string datatype = header.Values.ContainsKey("type") ? (string)header.Values["type"] : "unknown";
                 string msg = "Client [" + client_callerid + "] wants topic [" + topic + "] to hava datatype/md5sum [" +
                              datatype + "/" + md5sum + "], but our version has [" + DataType + "/" + Md5sum +
                              "]. Dropping connection";
@@ -188,7 +189,7 @@ namespace Uml.Robotics.Ros
                 foreach (SubscriberLink c in subscriber_links)
                 {
                     var curr_info = new XmlRpcValue();
-                    curr_info.Set(0, (int) c.connection_id);
+                    curr_info.Set(0, (int)c.connection_id);
                     curr_info.Set(1, c.destination_caller_id);
                     curr_info.Set(2, "o");
                     curr_info.Set(3, "TCPROS");
@@ -246,7 +247,7 @@ namespace Uml.Robotics.Ros
                 if (h == null)
                     header = new std_msgs.Header();
                 else
-                    header = (std_msgs.Header) h;
+                    header = (std_msgs.Header)h;
                 header.seq = seq;
                 if (header.stamp == null)
                 {
