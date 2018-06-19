@@ -177,6 +177,21 @@ namespace Uml.Robotics.Ros
             realSocket.SetSocketOption(lvl, n, optionvalue);
         }
 
+        public void SetSocketOption(ns.SocketOptionLevel lvl, ns.SocketOptionName n, int optionvalue)
+        {
+            realSocket.SetSocketOption(lvl, n, optionvalue);
+        }
+
+        public void SetSocketOption(ns.SocketOptionLevel lvl, ns.SocketOptionName n, bool optionvalue)
+        {
+            realSocket.SetSocketOption(lvl, n, optionvalue);
+        }
+
+        public void SetSocketOption(ns.SocketOptionLevel lvl, ns.SocketOptionName n, byte[] optionvalue)
+        {
+            realSocket.SetSocketOption(lvl, n, optionvalue);
+        }
+
         public void Shutdown(ns.SocketShutdown sd)
         {
             realSocket.Shutdown(sd);
