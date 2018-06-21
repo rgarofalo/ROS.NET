@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
+
+
     public class Connection
     {
         public enum DropReason
