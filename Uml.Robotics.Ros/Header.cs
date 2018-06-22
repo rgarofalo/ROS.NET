@@ -16,24 +16,25 @@ namespace Uml.Robotics.Ros
             int i = 0;
             while (i < size)
             {
-                int thispiece = BitConverter.ToInt32(buffer, i);
+                int length = BitConverter.ToInt32(buffer, i);
                 i += 4;
-                byte[] line = new byte[thispiece];
-                Array.Copy(buffer, i, line, 0, thispiece);
-                string thisheader = Encoding.ASCII.GetString(line);
-                string[] chunks = thisheader.Split('=');
+                byte[] lineBuffer = new byte[length];
+                Array.Copy(buffer, i, lineBuffer, 0, length);
+                string line = Encoding.ASCII.GetString(lineBuffer);
+                string[] chunks = line.Split('=');
                 if (chunks.Length != 2)
                 {
-                    i += thispiece;
+                    i += length;
                     continue;
                 }
                 Values[chunks[0].Trim()] = chunks[1].Trim();
-                i += thispiece;
+                i += length;
             }
 
             if (i != size)
             {
-                Logger.LogWarning("Could not parse connection header.");
+                error_msg = "Could not parse connection header.";
+                Logger.LogWarning(error_msg);
                 return false;
             }
 

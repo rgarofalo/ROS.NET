@@ -10,40 +10,15 @@ using Uml.Robotics.Ros;
 
 namespace Xamla.Robotics.Ros.Async
 {
-    public struct Block
+    public class ConnectionError : Exception
     {
-        public static readonly Block Null = new Block(null);
-
-        public readonly byte[] Data;
-
-        public Block(byte[] data)
+        public ConnectionError(string message)
+            : base(message)
         {
-            this.Data = data;
         }
-    }
-
-    public class BlockReceivedArgs : EventArgs
-    {
-        public Block Block { get; }
-
-        public BlockReceivedArgs(Block block)
-        {
-            this.Block = block;
-        }
-    }
-
-    public interface IConnection
-        : IDisposable
-    {
-        bool TryAddToOutputQueue(Block block);
-        Task AddToOutputQueue(Block block, CancellationToken cancel);
-        Task WhenComplete { get; }
-        event EventHandler<BlockReceivedArgs> BlockReceived;
-        Task Close(TimeSpan? timeout = null);
     }
 
     public class ConnectionAsync
-        : IConnection
     {
         public enum DropReason
         {
@@ -53,20 +28,22 @@ namespace Xamla.Robotics.Ros.Async
         }
 
         readonly ILogger logger;
+        readonly System.Net.Sockets.Socket socket;
         readonly NetworkStream stream;
         public Header header = new Header();
-        CancellationTokenSource cancelSource = new CancellationTokenSource();
-        AsyncQueue<Block> outputQueue;
 
-        public ConnectionAsync(NetworkStream stream, CancellationToken cancel = default(CancellationToken))
+        // connection values read from header
+        string topic;
+
+        bool sendingHeaderError;
+
+        public ConnectionAsync(System.Net.Sockets.Socket socket, NetworkStream stream)
         {
+            this.socket = socket;
             this.stream = stream;
             this.logger = ApplicationLogging.CreateLogger<ConnectionAsync>();
-            this.cancelSource = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-            this.outputQueue = new AsyncQueue<Block>(1024);
         }
 
-        public event EventHandler<BlockReceivedArgs> BlockReceived;
         public Task ConnectionTask { get; private set; }
         public Task SendTask { get; private set; }
         public Task ReceiveTask { get; private set; }
@@ -83,202 +60,96 @@ namespace Xamla.Robotics.Ros.Async
             }
         }
 
-        public void Start()
+        public async Task<IDictionary<string, string>> ReadHeader()
         {
-            if (this.ConnectionTask == null)
+            var lengthBuffer = new byte[4];
+            await this.ReadBlock(lengthBuffer);
+            int length = BitConverter.ToInt32(lengthBuffer, 0);
+
+            if (length > 1000000000)
+                throw new ConnectionError("Invalid header length received");
+
+            byte[] headerBuffer = await this.ReadBlock(length);
+
+            string errorMessage = "";
+            if (!header.Parse(headerBuffer, length, ref errorMessage))
             {
-                this.ConnectionTask = HandleConnection();
+                throw new ConnectionError(errorMessage);
             }
-        }
 
-        public bool TryAddToOutputQueue(Block block)
-        {
-            return outputQueue.TryOnNext(block);
-        }
-
-        public async Task AddToOutputQueue(Block block, CancellationToken cancel)
-        {
-            await outputQueue.OnNext(block, cancel);
-        }
-
-        private async Task HandleConnection()
-        {
-            var cancel = cancelSource.Token;
-
-            await this.Socket.ConnectAsync(uri, cancel);
-
-            this.SendTask = Send();
-            this.ReceiveTask = Receive();
-
-            await Task.WhenAll(this.SendTask, this.ReceiveTask);
-        }
-
-        private async Task Send()
-        {
-            try
+            if (header.Values.ContainsKey("error"))
             {
-                var cancel = cancelSource.Token;
-                while (await outputQueue.MoveNext(cancel))
+                string error = header.Values["error"];
+                logger.LogInformation("Received error message in header for connection to [{0}]: [{1}]",
+                    "TCPROS connection to [" + socket.RemoteEndPoint + "]", error);
+                throw new ConnectionError(error);
+            }
+
+            if (topic == null && header.Values.ContainsKey("topic"))
+            {
+                topic = header.Values["topic"];
+            }
+
+            if (header.Values.ContainsKey("tcp_nodelay"))
+            {
+                if (header.Values["tcp_nodelay"] == "1")
                 {
-                    Block block = outputQueue.Current;
-                    var obj = block.Message;
-
-                    if (obj == null)
-                    {
-                        // close websocket
-                        await this.Socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "bye", cancel);
-                        return;     // done
-                    }
-                    else
-                    {
-                        // serialize message to json
-                        var ms = new MemoryStream();
-                        using (var jsonWriter = new JsonTextWriter(new StreamWriter(ms)))
-                        {
-                            serializer.Serialize(jsonWriter, obj);
-                        }
-
-                        // send message to client
-                        ms.TryGetBuffer(out ArraySegment<byte> data);
-                        await this.stream.WriteAsync(data, WebSocketMessageType.Text, true, cancel);
-
-                        // optionally send binary attachments of message
-                        if (block.Attachments != null)
-                        {
-                            foreach (var attachment in block.Attachments)
-                            {
-                                await this.Socket.SendAsync(attachment, WebSocketMessageType.Binary, true, cancel);
-                            }
-                        }
-                    }
+                    this.socket.NoDelay = true;
                 }
             }
-            catch
+
+            return header.Values;
+        }
+
+        public async Task SendHeaderError(string errorMessage, CancellationToken cancel)
+        {
+            var header = new Dictionary<string, string>
             {
-                cancelSource.Cancel();      // cancel receive task
-                throw;
+                { "error", errorMessage }
+            };
+
+            sendingHeaderError = true;
+            await WriteHeader(header, cancel);
+        }
+
+        public async Task WriteHeader(IDictionary<string, string> headerValues, CancellationToken cancel)
+        {
+            //if (!transport.getRequiresHeader())
+            //    return;
+
+            header.Write(headerValues, out byte[] headerBuffer, out int headerLength);
+            int messageLength = (int)headerLength + 4;
+
+            byte[] messageBuffer = new byte[messageLength];
+            Buffer.BlockCopy(BitConverter.GetBytes(headerLength), 0, messageBuffer, 0, 4);
+            Buffer.BlockCopy(headerBuffer, 0, messageBuffer, 4, headerBuffer.Length);
+
+            await stream.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancel);
+        }
+
+        public async Task<byte[]> ReadBlock(int size, CancellationToken cancel)
+        {
+            var buffer = new byte[size];
+            await ReadBlock(new ArraySegment<byte>(buffer), cancel);
+            return buffer;
+        }
+
+        public async Task ReadBlock(ArraySegment<byte> buffer, CancellationToken cancel)
+        {
+            if (!await stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel))
+            {
+                throw new EndOfStreamException("Connection closed gracefully");
             }
         }
 
-        private Block pendingReceive;
-        private int remainingAttachments;
-
-        private int GetAttachmentCount(object message)
+        public async Task Write(byte[] buffer, int offset, int count, CancellationToken cancel)
         {
-            if (message is JObject obj)
-            {
-                var attachmentCount = obj.GetValue("binaryAttachmentCount");        // well-known field name to indicate binary attachments will follow
-                if (attachmentCount != null && attachmentCount.Type == JTokenType.Integer)
-                {
-                    return (int)attachmentCount;
-                }
-            }
-            return 0;
-        }
-
-        private async Task Receive()
-        {
-            try
-            {
-                var cancel = cancelSource.Token;
-                var ms = new MemoryStream();
-                var buffer = new ArraySegment<byte>(new byte[64 * 1024]);
-                while (!cancel.IsCancellationRequested)
-                {
-                    var receiveResult = await this.stream.ReceiveAsync(buffer, cancel);
-                    if (receiveResult.MessageType == WebSocketMessageType.Close)
-                    {
-                        if (receiveResult.CloseStatus != WebSocketCloseStatus.NormalClosure)
-                        {
-                            throw new Exception($"Websocket closed connection unexpectedly. CloseStatus: '{receiveResult.CloseStatusDescription}' ({receiveResult.CloseStatus})");
-                        }
-                        this.TryAddToOutputQueue(Block.Null);     // close on flush
-                        return;     // done
-                    }
-
-                    ms.Write(buffer.Array, 0, receiveResult.Count);
-                    if (receiveResult.EndOfMessage)
-                    {
-                        if (receiveResult.MessageType == WebSocketMessageType.Text)
-                        {
-                            if (remainingAttachments > 0)
-                                throw new Exception("Protocol error: Binary message expected.");
-
-                            ms.Position = 0;
-                            using (var jsonReader = new JsonTextReader(new StreamReader(ms)))
-                            {
-                                var msg = serializer.Deserialize(jsonReader);
-                                remainingAttachments = GetAttachmentCount(msg);
-                                if (remainingAttachments > 0)
-                                    pendingReceive = new Block(msg, new List<byte[]>());
-                                else
-                                    OnBlockReceived(new Block(msg));
-                            }
-                        }
-                        else
-                        {
-                            Debug.Assert(receiveResult.MessageType == WebSocketMessageType.Binary);
-
-                            if (remainingAttachments < 1)
-                                throw new Exception("Protocol error: No binary messge expected.");
-
-                            pendingReceive.Attachments.Add(ms.ToArray());
-                            remainingAttachments -= 1;
-                            if (remainingAttachments == 0)
-                            {
-                                var msg = pendingReceive;
-                                pendingReceive = Block.Null;
-                                OnBlockReceived(msg);
-                            }
-                        }
-                        ms = new MemoryStream();
-                    }
-                }
-            }
-            catch
-            {
-                cancelSource.Cancel();      // cancel send task
-                throw;
-            }
-        }
-
-        public Task WhenComplete => this.ConnectionTask;
-
-        public async Task Close(TimeSpan? timeout = null)
-        {
-            var cancel = cancelSource.Token;
-
-            await Task.WhenAll(AddToOutputQueue(Block.Null, cancel), this.SendTask).WhenCompleted().TimeoutAfter(timeout);
-
-            try
-            {
-                await this.WhenComplete.WhenCompleted().TimeoutAfter(timeout);
-                cancelSource.Cancel();
-            }
-            finally
-            {
-                Dispose();
-            }
+            await stream.WriteAsync(buffer, offset, count, cancel);
         }
 
         public void Dispose()
         {
-            outputQueue.Dispose();
-            cancelSource.Cancel();
             stream.Dispose();
         }
-
-        protected virtual void OnBlockReceived(Block block)
-        {
-            try
-            {
-                this.BlockReceived?.Invoke(this, new BlockReceivedArgs(block));
-            }
-            catch (Exception error)
-            {
-                logger?.LogError(default(EventId), error, "Exception in MessageReceived event callback of Subscriber");
-            }
-        }
-
     }
 }

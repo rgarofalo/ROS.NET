@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Uml.Robotics.Ros;
 
@@ -24,14 +25,15 @@ namespace Xamla.Robotics.Ros.Async
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<IServiceServerLink>();
 
         private readonly object gate = new object();
+        private ConnectionAsync connection;
         private AsyncQueue<CallInfo> callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
-        private Connection connection;
 
         private string name;
         private readonly bool persistent;
         private CallInfo currentCall;
-        private bool headerRead;
-        private bool headerWritten;
+
+        private CancellationTokenSource cancellationTokenSource;
+        private CancellationToken cancel;
 
         private IDictionary<string, string> headerValues;
 
@@ -48,6 +50,9 @@ namespace Xamla.Robotics.Ros.Async
             this.RequestMd5Sum = requestMd5Sum;
             this.ResponseMd5Sum = responseMd5Sum;
             this.headerValues = headerValues;
+
+            this.cancellationTokenSource = new CancellationTokenSource();
+            this.cancel = cancellationTokenSource.Token;
         }
 
         public bool IsValid { get; private set; }
@@ -58,11 +63,8 @@ namespace Xamla.Robotics.Ros.Async
 
         public void Dispose()
         {
-            if (connection != null && !connection.dropped)
-            {
-                connection.drop(Connection.DropReason.Destructing);
-                connection = null;
-            }
+            connection?.Dispose();
+            connection = null;
         }
 
         public void Initialize<MSrv>()
@@ -86,19 +88,16 @@ namespace Xamla.Robotics.Ros.Async
             ResponseType = res.MessageType;
         }
 
-        internal void Initialize(ConnectionAsync connection)
+        private async Task WriteHeader()
         {
-            this.connection = connection;
-            connection.DroppedEvent += onConnectionDropped;
-            connection.setHeaderReceivedCallback(onHeaderReceived);
-
-            IDictionary<string, string> header = new Dictionary<string, string>
+            var header = new Dictionary<string, string>
             {
                 ["service"] = name,
                 ["md5sum"] = RosService.Generate(RequestType.Replace("__Request", "").Replace("__Response", "")).MD5Sum(),
                 ["callerid"] = ThisNode.Name,
                 ["persistent"] = persistent ? "1" : "0"
             };
+
             if (headerValues != null)
             {
                 foreach (string o in headerValues.Keys)
@@ -106,7 +105,54 @@ namespace Xamla.Robotics.Ros.Async
                     header[o] = headerValues[o];
                 }
             }
-            connection.writeHeader(header, onHeaderWritten);
+
+            await this.connection.WriteHeader(header, cancel);
+        }
+
+        private async Task<IDictionary<string, string>> ReadHeader()
+        {
+            var remoteHeader = await this.connection.ReadHeader();
+
+            if (!remoteHeader.TryGetValue("md5sum", out string md5sum))
+            {
+                string errorMessage = "TcpRos header from service server did not have required element: md5sum";
+                ROS.Error()(errorMessage);
+                throw new ConnectionError(errorMessage);
+            }
+
+            // TODO check md5sum
+
+            return remoteHeader;
+        }
+
+        private async Task<IDictionary<string, string>> Handshake()
+        {
+            await WriteHeader();
+            return await ReadHeader();
+        }
+
+        private async Task ProcessCall(CallInfo call)
+        {
+            RosMessage request = call.Request;
+            request.Serialized = request.Serialize();
+            connection.WriteHeader
+            byte[] tosend = new byte[request.Serialized.Length + 4];
+
+            Array.Copy(BitConverter.GetBytes(request.Serialized.Length), tosend, 4);
+            Array.Copy(request.Serialized, 0, tosend, 4, request.Serialized.Length);
+            connection.write(tosend, tosend.Length, onRequestWritten);
+        }
+
+        async Task HandleConnection()
+        {
+            await Handshake();
+            IsValid = true;
+
+            while (await callQueue.MoveNext(cancel))
+            {
+                currentCall = callQueue.Current;
+
+            }
         }
 
         private void onConnectionDropped(Connection connection, Connection.DropReason reason)

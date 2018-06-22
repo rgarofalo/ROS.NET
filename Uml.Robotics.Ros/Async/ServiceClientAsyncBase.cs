@@ -53,7 +53,7 @@ namespace Xamla.Robotics.Ros.Async
                 return false;
             }
 
-            if (serverLink != null && serverLink.connection.dropped)
+            if (serverLink != null && !serverLink.Socket.Connected)
             {
                 if (persistent)
                     Logger.LogWarning("Persistent service client's server link has been dropped. Trying to reconnect to proceed with this call");
