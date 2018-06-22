@@ -23,12 +23,12 @@ namespace Xamla.Robotics.Ros.Async
 
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<IServiceServerLink>();
 
-        private object gate = new object();
+        private readonly object gate = new object();
         private AsyncQueue<CallInfo> callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
         private Connection connection;
 
         private string name;
-        private bool persistent;
+        private readonly bool persistent;
         private CallInfo currentCall;
         private bool headerRead;
         private bool headerWritten;
@@ -86,7 +86,7 @@ namespace Xamla.Robotics.Ros.Async
             ResponseType = res.MessageType;
         }
 
-        internal void Initialize(Connection connection)
+        internal void Initialize(ConnectionAsync connection)
         {
             this.connection = connection;
             connection.DroppedEvent += onConnectionDropped;

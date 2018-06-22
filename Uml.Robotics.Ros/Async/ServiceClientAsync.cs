@@ -38,8 +38,7 @@ namespace Xamla.Robotics.Ros.Async
                 return (false, null);
             }
 
-            var serviceServerLink = serverLink as ServiceServerLinkAsync;
-            (bool result, RosMessage response) = await serviceServerLink.Call(request);
+            (bool result, RosMessage response) = await serverLink.Call(request);
 
             var responseMessage = (MRes)response;
             return (result, responseMessage);
@@ -78,8 +77,7 @@ namespace Xamla.Robotics.Ros.Async
                 return false;
             }
 
-            var serviceServerLink = serverLink as ServiceServerLinkAsync;
-            bool result = await serviceServerLink.Call(srv);
+            bool result = await serverLink.Call(srv);
             return result;
         }
     }
