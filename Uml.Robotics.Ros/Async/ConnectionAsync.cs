@@ -20,16 +20,11 @@ namespace Xamla.Robotics.Ros.Async
 
     public class ConnectionAsync
     {
-        public enum DropReason
-        {
-            TransportDisconnect,
-            HeaderError,
-            Destructing
-        }
+        public const int MESSAGE_SIZE_LIMIT = 1000000000;
 
         readonly ILogger logger;
-        readonly System.Net.Sockets.Socket socket;
-        readonly NetworkStream stream;
+        TcpClient client;
+        NetworkStream stream;
         public Header header = new Header();
 
         // connection values read from header
@@ -37,17 +32,15 @@ namespace Xamla.Robotics.Ros.Async
 
         bool sendingHeaderError;
 
-        public ConnectionAsync(System.Net.Sockets.Socket socket, NetworkStream stream)
+        public ConnectionAsync(TcpClient client)
         {
-            this.socket = socket;
-            this.stream = stream;
+            this.client = client;
+            this.stream = client.GetStream();
             this.logger = ApplicationLogging.CreateLogger<ConnectionAsync>();
         }
 
-        public Task ConnectionTask { get; private set; }
-        public Task SendTask { get; private set; }
-        public Task ReceiveTask { get; private set; }
-        public NetworkStream Stream { get; private set; }
+        public NetworkStream Stream => stream;
+        public System.Net.Sockets.Socket Socket => client.Client;
 
         /// <summary>Returns the ID of the connection</summary>
         public string CallerID
@@ -60,19 +53,18 @@ namespace Xamla.Robotics.Ros.Async
             }
         }
 
-        public async Task<IDictionary<string, string>> ReadHeader()
+        public async Task<IDictionary<string, string>> ReadHeader(CancellationToken cancel)
         {
             var lengthBuffer = new byte[4];
-            await this.ReadBlock(lengthBuffer);
+            await this.ReadBlock(lengthBuffer, cancel);
             int length = BitConverter.ToInt32(lengthBuffer, 0);
 
-            if (length > 1000000000)
+            if (length > MESSAGE_SIZE_LIMIT)
                 throw new ConnectionError("Invalid header length received");
 
-            byte[] headerBuffer = await this.ReadBlock(length);
+            byte[] headerBuffer = await this.ReadBlock(length, cancel);
 
-            string errorMessage = "";
-            if (!header.Parse(headerBuffer, length, ref errorMessage))
+            if (!header.Parse(headerBuffer, length, out string errorMessage))
             {
                 throw new ConnectionError(errorMessage);
             }
@@ -81,7 +73,7 @@ namespace Xamla.Robotics.Ros.Async
             {
                 string error = header.Values["error"];
                 logger.LogInformation("Received error message in header for connection to [{0}]: [{1}]",
-                    "TCPROS connection to [" + socket.RemoteEndPoint + "]", error);
+                    "TCPROS connection to [" + this.Socket.RemoteEndPoint + "]", error);
                 throw new ConnectionError(error);
             }
 
@@ -94,7 +86,7 @@ namespace Xamla.Robotics.Ros.Async
             {
                 if (header.Values["tcp_nodelay"] == "1")
                 {
-                    this.socket.NoDelay = true;
+                    this.Socket.NoDelay = true;
                 }
             }
 
@@ -149,7 +141,8 @@ namespace Xamla.Robotics.Ros.Async
 
         public void Dispose()
         {
-            stream.Dispose();
+            client?.Dispose();
+            client = null;
         }
     }
 }

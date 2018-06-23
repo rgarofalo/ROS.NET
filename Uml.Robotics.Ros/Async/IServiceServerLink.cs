@@ -7,7 +7,8 @@ using Uml.Robotics.Ros;
 
 namespace Xamla.Robotics.Ros.Async
 {
-    public interface IServiceServerLink
+    public interface IServiceServerLinkAsync
+        : IDisposable
     {
         bool IsValid { get; }
 

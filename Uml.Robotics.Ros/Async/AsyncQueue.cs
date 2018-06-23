@@ -25,7 +25,7 @@ namespace Xamla.Robotics.Ros.Async
 
         T current;
         ConcurrentQueue<T> queue;
-        int maxLength;
+        readonly int maxLength;
         bool completed;
         ExceptionDispatchInfo error;
         bool disposed;

@@ -5,6 +5,9 @@ using System.Linq;
 using System.Threading;
 using Uml.Robotics.XmlRpc;
 using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
+using Xamla.Robotics.Ros.Async;
+using System.Net.Sockets;
 
 namespace Uml.Robotics.Ros
 {
@@ -22,6 +25,7 @@ namespace Uml.Robotics.Ros
         private List<IServicePublication> servicePublications = new List<IServicePublication>();
         private object servicePublicationsMutex = new object();
         private List<IServiceServerLink> serviceServerLinks = new List<IServiceServerLink>();
+        private HashSet<IServiceServerLinkAsync> serviceServerLinksAsync = new HashSet<IServiceServerLinkAsync>();
         private object serviceServerLinksMutex = new object();
         private bool shuttingDown;
         private object shuttingDownMutex = new object();
@@ -62,6 +66,93 @@ namespace Uml.Robotics.Ros
             return null;
         }
 
+        internal async Task<(string host, int port)> LookupServiceAsync(string name)
+        {
+            XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
+            args.Set(0, ThisNode.Name);
+            args.Set(1, name);
+
+            if (!await Master.ExecuteAsync("lookupService", args, result, payload, false))
+            {
+                throw new Exception($"The Service '{name}' is not available at ROS master.");
+            }
+
+            string uri = payload.GetString();
+            if (string.IsNullOrWhiteSpace(uri))
+            {
+                throw new Exception("An Empty server URI was returned from ROS master.");
+            }
+
+            if (!Network.SplitUri(uri, out string host, out int port))
+            {
+                throw new Exception($"Bad service URI received: '{uri}]");
+            }
+
+            return (host, port);
+        }
+
+        private async Task<IServiceServerLinkAsync> CreateServiceServerLinkAsync(
+            string service,
+            bool persistent,
+            string requestMd5Sum,
+            string responseMd5Sum,
+            IDictionary<string, string> headerValues,
+            Action<ServiceServerLinkAsync> initialize
+        )
+        {
+            (string host, int port) = await LookupServiceAsync(service);
+
+            var client = new TcpClient();
+            await client.ConnectAsync(host, port);
+            client.NoDelay = true;
+
+            var connection = new ConnectionAsync(client);
+            var link = new ServiceServerLinkAsync(connection, service, persistent, requestMd5Sum, responseMd5Sum, headerValues);
+            initialize(link);
+
+            lock (serviceServerLinksMutex)
+            {
+                serviceServerLinksAsync.Add(link);
+            }
+
+            return link;
+        }
+
+        internal async Task<IServiceServerLinkAsync> CreateServiceServerLinkAsync<S>(
+            string service,
+            bool persistent,
+            string requestMd5Sum,
+            string responseMd5Sum,
+            IDictionary<string, string> headerValues
+        )
+            where S : RosService, new()
+        {
+            return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<S>());
+        }
+
+        internal async Task<IServiceServerLinkAsync> CreateServiceServerLinkAsync<Req, Res>(
+            string service,
+            bool persistent,
+            string requestMd5Sum,
+            string responseMd5Sum,
+            IDictionary<string, string> headerValues
+        )
+            where Req : RosMessage, new()
+            where Res : RosMessage, new()
+        {
+            return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<Req, Res>());
+        }
+
+        internal void RemoveServiceServerLinkAsync(IServiceServerLinkAsync link)
+        {
+            if (shuttingDown)
+                return;
+
+            lock (serviceServerLinksMutex)
+            {
+                serviceServerLinksAsync.Remove(link);
+            }
+        }
 
         internal ServiceServerLink<S> CreateServiceServerLink<S>(string service, bool persistent, string request_md5sum, string response_md5sum, IDictionary<string, string> header_values)
             where S : RosService, new()
@@ -91,7 +182,6 @@ namespace Uml.Robotics.Ros
             }
             return null;
         }
-
 
         internal ServiceServerLink<M, T> CreateServiceServerLink<M, T>(string service, bool persistent, string request_md5sum,
                                                                        string response_md5sum, IDictionary<string, string> header_values)
@@ -124,29 +214,29 @@ namespace Uml.Robotics.Ros
         }
 
 
-        internal void RemoveServiceServerLink<M, T>(ServiceServerLink<M, T> issl)
+        internal void RemoveServiceServerLink<M, T>(ServiceServerLink<M, T> link)
             where M : RosMessage, new()
             where T : RosMessage, new()
         {
-            RemoveServiceServerLink((IServiceServerLink) issl);
+            RemoveServiceServerLink((IServiceServerLink) link);
         }
 
 
-        internal void RemoveServiceServerLink<S>(ServiceServerLink<S> issl)
+        internal void RemoveServiceServerLink<S>(ServiceServerLink<S> link)
             where S : RosService, new()
         {
-            RemoveServiceServerLink((IServiceServerLink) issl);
+            RemoveServiceServerLink((IServiceServerLink) link);
         }
 
 
-        internal void RemoveServiceServerLink(IServiceServerLink issl)
+        internal void RemoveServiceServerLink(IServiceServerLink link)
         {
             if (shuttingDown)
                 return;
             lock (serviceServerLinksMutex)
             {
-                if (serviceServerLinks.Contains(issl))
-                    serviceServerLinks.Remove(issl);
+                if (serviceServerLinks.Contains(link))
+                    serviceServerLinks.Remove(link);
             }
         }
 
@@ -231,17 +321,24 @@ namespace Uml.Robotics.Ros
                 }
                 servicePublications.Clear();
             }
-            List<IServiceServerLink> local_service_clients;
+            List<IServiceServerLink> localServiceClients;
+            List<IServiceServerLinkAsync> localAsyncServiceClients;
             lock (serviceServerLinks)
             {
-                local_service_clients = new List<IServiceServerLink>(serviceServerLinks);
+                localServiceClients = serviceServerLinks.ToList();
                 serviceServerLinks.Clear();
+
+                localAsyncServiceClients = serviceServerLinksAsync.ToList();
+                serviceServerLinksAsync.Clear();
             }
-            foreach (IServiceServerLink issl in local_service_clients)
+            foreach (IServiceServerLink link in localServiceClients)
             {
-                issl.connection.drop(Connection.DropReason.Destructing);
+                link.connection.drop(Connection.DropReason.Destructing);
             }
-            local_service_clients.Clear();
+            foreach (IServiceServerLinkAsync link in localAsyncServiceClients)
+            {
+                link.Dispose();
+            }
         }
 
 

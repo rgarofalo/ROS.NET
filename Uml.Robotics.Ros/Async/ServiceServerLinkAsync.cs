@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,8 +9,8 @@ using Uml.Robotics.Ros;
 
 namespace Xamla.Robotics.Ros.Async
 {
-    class ServiceServerLinkAsync
-        : IServiceServerLink
+    internal class ServiceServerLinkAsync
+        : IServiceServerLinkAsync
     {
         const int MAX_CALL_QUEUE_LENGTH = 8096;
 
@@ -17,27 +18,27 @@ namespace Xamla.Robotics.Ros.Async
         {
             public TaskCompletionSource<bool> Tcs { get; } = new TaskCompletionSource<bool>();
             public Task<bool> AsyncResult => this.Tcs.Task;
-
             public RosMessage Request { get; set; }
             public RosMessage Response { get; set; }
+            public string ErrorMessage { get; set; }
         }
 
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<IServiceServerLink>();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceServerLinkAsync>();
 
-        private readonly object gate = new object();
         private ConnectionAsync connection;
         private AsyncQueue<CallInfo> callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
 
-        private string name;
+        private readonly string name;
         private readonly bool persistent;
-        private CallInfo currentCall;
 
-        private CancellationTokenSource cancellationTokenSource;
-        private CancellationToken cancel;
+        private readonly CancellationTokenSource cancellationTokenSource;
+        private readonly CancellationToken cancel;
 
         private IDictionary<string, string> headerValues;
+        Task connectionTask;
 
         public ServiceServerLinkAsync(
+            ConnectionAsync connection,
             string name,
             bool persistent,
             string requestMd5Sum,
@@ -45,6 +46,7 @@ namespace Xamla.Robotics.Ros.Async
             IDictionary<string, string> headerValues
         )
         {
+            this.connection = connection;
             this.name = name;
             this.persistent = persistent;
             this.RequestMd5Sum = requestMd5Sum;
@@ -55,7 +57,15 @@ namespace Xamla.Robotics.Ros.Async
             this.cancel = cancellationTokenSource.Token;
         }
 
-        public bool IsValid { get; private set; }
+        public System.Net.Sockets.Socket Socket =>
+            connection?.Socket;
+
+        public NetworkStream Stream =>
+            connection?.Stream;
+
+        public bool IsValid =>
+            !cancellationTokenSource.IsCancellationRequested && connection != null && !connectionTask.IsCompleted && !callQueue.IsCompleted;
+
         public string RequestMd5Sum { get; private set; }
         public string RequestType { get; private set; }
         public string ResponseMd5Sum { get; private set; }
@@ -63,6 +73,7 @@ namespace Xamla.Robotics.Ros.Async
 
         public void Dispose()
         {
+            cancellationTokenSource.Cancel();
             connection?.Dispose();
             connection = null;
         }
@@ -75,6 +86,8 @@ namespace Xamla.Robotics.Ros.Async
             ResponseMd5Sum = srv.ResponseMessage.MD5Sum();
             RequestType = srv.RequestMessage.MessageType;
             ResponseType = srv.ResponseMessage.MessageType;
+
+            this.connectionTask = HandleConnection();
         }
 
         public void Initialize<MReq, MRes>()
@@ -86,6 +99,8 @@ namespace Xamla.Robotics.Ros.Async
             ResponseMd5Sum = res.MD5Sum();
             RequestType = req.MessageType;
             ResponseType = res.MessageType;
+
+            this.connectionTask = HandleConnection();
         }
 
         private async Task WriteHeader()
@@ -111,7 +126,7 @@ namespace Xamla.Robotics.Ros.Async
 
         private async Task<IDictionary<string, string>> ReadHeader()
         {
-            var remoteHeader = await this.connection.ReadHeader();
+            var remoteHeader = await this.connection.ReadHeader(cancel);
 
             if (!remoteHeader.TryGetValue("md5sum", out string md5sum))
             {
@@ -134,241 +149,98 @@ namespace Xamla.Robotics.Ros.Async
         private async Task ProcessCall(CallInfo call)
         {
             RosMessage request = call.Request;
-            request.Serialized = request.Serialize();
-            connection.WriteHeader
-            byte[] tosend = new byte[request.Serialized.Length + 4];
 
-            Array.Copy(BitConverter.GetBytes(request.Serialized.Length), tosend, 4);
-            Array.Copy(request.Serialized, 0, tosend, 4, request.Serialized.Length);
-            connection.write(tosend, tosend.Length, onRequestWritten);
+            // serialize and send request
+            request.Serialized = request.Serialize();
+
+            await connection.Write(BitConverter.GetBytes(request.Serialized.Length), 0, 4, cancel);
+            await connection.Write(request.Serialized, 0, request.Serialized.Length, cancel);
+
+            // read response header
+            var receiveBuffer = await connection.ReadBlock(5, cancel);
+
+            bool success = receiveBuffer[0] != 0;
+            int responseLength = BitConverter.ToInt32(receiveBuffer, 1);
+
+            if (responseLength < 0 || responseLength > ConnectionAsync.MESSAGE_SIZE_LIMIT)
+            {
+                var errorMessage = $"Message length exceeds limit of {ConnectionAsync.MESSAGE_SIZE_LIMIT}. Dropping connection.";
+                ROS.Error()(errorMessage);
+                throw new ConnectionError(errorMessage);
+            }
+
+            if (responseLength > 0)
+            {
+                logger.LogDebug($"Reading message with length of {responseLength}.");
+                receiveBuffer = await connection.ReadBlock(responseLength, cancel);
+            }
+            else
+            {
+                receiveBuffer = new byte[0];
+            }
+
+            if (success)
+            {
+                call.Response.Serialized = receiveBuffer;
+                call.Tcs.TrySetResult(true);
+            }
+            else
+            {
+                if (receiveBuffer.Length > 0)
+                {
+                    // call failed with reason
+                    call.Tcs.TrySetException(new Exception(Encoding.UTF8.GetString(receiveBuffer)));
+                }
+
+                call.Tcs.TrySetResult(false);
+            }
         }
 
         async Task HandleConnection()
         {
-            await Handshake();
-            IsValid = true;
-
-            while (await callQueue.MoveNext(cancel))
+            try
             {
-                currentCall = callQueue.Current;
+                await Handshake();
 
-            }
-        }
-
-        private void onConnectionDropped(Connection connection, Connection.DropReason reason)
-        {
-            if (connection != this.connection)
-                throw new ArgumentException("Unknown connection", nameof(connection));
-
-            Logger.LogDebug("Service client from [{0}] for [{1}] dropped", connection.RemoteString, name);
-
-            ClearCalls();
-
-            ServiceManager.Instance.RemoveServiceServerLinkAsync(this);
-
-            IsValid = false;
-        }
-
-        private bool OnHeaderReceived(Connection conn, Header header)
-        {
-            string md5sum;
-            if (header.Values.ContainsKey("md5sum"))
-            {
-                md5sum = header.Values["md5sum"];
-            }
-            else
-            {
-                var message = "TcpRos header from service server did not have required element: md5sum";
-                ROS.Error()(message);
-                Logger.LogError(message);
-                return false;
-            }
-
-            //TODO check md5sum
-
-            bool empty = false;
-            lock (gate)
-            {
-                empty = (callQueue.Count == 0);
-                if (empty)
-                    headerRead = true;
-            }
-
-            IsValid = true;
-
-            if (!empty)
-            {
-                processNextCall();
-                headerRead = true;
-            }
-
-            return true;
-        }
-
-        private void CallFinished()
-        {
-            lock (gate)
-            {
-                currentCall.Tcs.TrySetResult(true);
-                currentCall = null;
-            }
-
-            processNextCall();
-        }
-
-        private void processNextCall()
-        {
-            bool empty = false;
-            lock (gate)
-            {
-                if (currentCall != null)
-                    return;
-                if (callQueue.Count > 0)
+                while (await callQueue.MoveNext(cancel))
                 {
-                    currentCall = callQueue.Dequeue();
-                }
-                else
-                    empty = true;
-            }
-            if (empty)
-            {
-                if (!persistent)
-                {
-                    connection.drop(Connection.DropReason.Destructing);
+                    var call = callQueue.Current;
+                    await ProcessCall(call);
                 }
             }
-            else
+            catch (Exception e)
             {
-                RosMessage request;
-                lock (call_queue_mutex)
+                logger.LogDebug($"Service client for [{name}] dropped: {e.Message}");
+                                                                                                                    // cancel current call if any
+                if (callQueue.Current != null)
                 {
-                    request = currentCall.req;
+                    callQueue.Current.Tcs.TrySetException(e);
                 }
 
-                request.Serialized = request.Serialize();
-                byte[] tosend = new byte[request.Serialized.Length + 4];
-                Array.Copy(BitConverter.GetBytes(request.Serialized.Length), tosend, 4);
-                Array.Copy(request.Serialized, 0, tosend, 4, request.Serialized.Length);
-                connection.write(tosend, tosend.Length, onRequestWritten);
+                ClearCalls(e);
+
+                throw;
+            }
+            finally
+            {
+                logger.LogDebug($"Removing service client for [{name}] from ServiceManagare.");
+                ServiceManager.Instance.RemoveServiceServerLinkAsync(this);
             }
         }
 
-        private void ClearCalls()
+        private void ClearCalls(Exception e)
         {
-            CallInfo local_current;
-            lock (gate)
+            // dispose queue to ensure no further inserts can happen
+            callQueue.Dispose();
+
+            // cancel all other calls
+            var remainingCalls = callQueue.Flush();
+            foreach (var call in remainingCalls)
             {
-                local_current = currentCall;
+                call.Tcs.TrySetException(e);
             }
 
-            if (local_current != null)
-            {
-                CancelCall(local_current);
-            }
-
-            lock (gate)
-            {
-                while (callQueue.Count > 0)
-                {
-                    CancelCall(callQueue.Dequeue());
-                }
-            }
-        }
-
-        private void CancelCall(CallInfo info)
-        {
-            info.Tcs.TrySetCanceled();
-        }
-
-        private bool OnHeaderWritten(Connection conn)
-        {
-            headerWritten = true;
-            return true;
-        }
-
-        private bool OnRequestWritten(Connection conn)
-        {
-            Logger.LogInformation("onRequestWritten(Connection conn)");
-            connection.read(5, onResponseOkAndLength);
-            return true;
-        }
-
-        private bool onResponseOkAndLength(Connection conn, byte[] buf, int size, bool success)
-        {
-            if (conn != connection)
-            {
-                throw new ArgumentException("Unknown connection", nameof(conn));
-            }
-
-            if (size != 5)
-            {
-                throw new ArgumentException($"Wrong size {size}", nameof(size));
-            }
-
-            if (!success)
-                return false;
-
-            byte ok = buf[0];
-            int len = BitConverter.ToInt32(buf, 1);
-            int lengthLimit = 1000000000;
-            if (len > lengthLimit)
-            {
-                ROS.Error()($"Message length exceeds limit of {lengthLimit}. Dropping connection.");
-                Logger.LogError($"Message length exceeds limit of {lengthLimit}. Dropping connection.");
-                connection.drop(Connection.DropReason.Destructing);
-                return false;
-            }
-
-            lock (gate)
-            {
-                if (ok != 0)
-                    currentCall.success = true;
-                else
-                    currentCall.success = false;
-            }
-
-            if (len > 0)
-            {
-                Logger.LogDebug($"Reading message with length of {len}.");
-                connection.read(len, onResponse);
-            }
-            else
-            {
-                byte[] f = new byte[0];
-                onResponse(conn, f, 0, true);
-            }
-            return true;
-        }
-
-        private bool onResponse(Connection conn, byte[] buf, int size, bool success)
-        {
-            if (conn != connection)
-                throw new ArgumentException("Unknown connection", nameof(conn));
-
-            if (!success)
-                return false;
-
-            lock (gate)
-            {
-                if (currentCall.success)
-                {
-                    if (currentCall.resp == null)
-                        throw new NullReferenceException("Service response is null");
-                    currentCall.resp.Serialized = buf;
-                }
-                else if (buf.Length > 0)
-                {
-                    // call failed with reason
-                    currentCall.Tcs.TrySetException(new Exception(Encoding.UTF8.GetString(buf)));
-                }
-                else
-                {
-                    // call failed, but no reason is given
-                }
-            }
-
-            CallFinished();
-            return true;
+            callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
         }
 
         public async Task<bool> Call(RosService srv)
@@ -378,23 +250,22 @@ namespace Xamla.Robotics.Ros.Async
             return result;
         }
 
-        public async Task<(bool, RosMessage)> Call(RosMessage req)
+        public async Task<(bool, RosMessage)> Call(RosMessage request)
         {
-            RosMessage response = RosMessage.Generate(req.MessageType.Replace("Request", "Response"));
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
 
-            CallInfo info = new CallInfo { Request = req, Response = response };
+            RosMessage response = RosMessage.Generate(request.MessageType.Replace("Request", "Response"));
+            if (response == null)
+                throw new Exception("Response message generation failed.");
 
-            lock (gate)
-            {
-                if (connection.dropped)
-                    return (false, null);
-
-                callQueue.Enqueue(info);
-            }
-
+            var queue = callQueue;
             try
             {
-                bool success = await info.AsyncResult;
+                var call = new CallInfo { Request = request, Response = response };
+                await queue.OnNext(call, cancel);
+
+                bool success = await call.AsyncResult;
                 if (success)
                 {
                     // response is only sent on success
@@ -407,9 +278,14 @@ namespace Xamla.Robotics.Ros.Async
             {
                 string message = $"Service call failed: service [{name}] responded with an error: {e.Message}";
                 ROS.Error()(message);
-                Logger.LogError(message);
-
                 return (false, null);
+            }
+            finally
+            {
+                if (!persistent)
+                {
+                    queue.OnCompleted();
+                }
             }
         }
     }

@@ -55,7 +55,7 @@ namespace Uml.Robotics.Ros
             {
                 TcpRosServerPort = int.Parse(remappings["__tcpros_server_port"]);
             }
-            
+
             if (string.IsNullOrEmpty(host))
                 host = Dns.GetHostName();
         }

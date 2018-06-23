@@ -12,12 +12,14 @@ namespace Xamla.Robotics.Ros.Async
     {
         private bool disposed;
 
-        protected ILogger Logger { get; } = ApplicationLogging.CreateLogger<ServiceClientAsyncBase>();
+        protected object gate = new object();
+        protected ILogger logger = ApplicationLogging.CreateLogger<ServiceClientAsyncBase>();
         protected string serviceName;
         protected bool persistent;
         protected IDictionary<string, string> headerValues;
         protected string md5sum;
-        protected IServiceServerLink serverLink;
+        protected IServiceServerLinkAsync serverLink;
+        protected bool busy;
 
         public ServiceClientAsyncBase(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
         {
@@ -27,17 +29,26 @@ namespace Xamla.Robotics.Ros.Async
             this.md5sum = md5sum;
         }
 
-        protected abstract IServiceServerLink CreateLink();
+        public async Task Init()
+        {
+            if (persistent)
+            {
+                serverLink = await CreateLink();
+            }
+        }
+
+        protected abstract Task<IServiceServerLinkAsync> CreateLink();
 
         public void Dispose()
         {
-            if (!disposed)
+            if (disposed)
                 return;
             disposed = true;
 
-            if (!persistent && serverLink != null)
+            if (serverLink != null)
             {
-                ServiceManager.Instance.RemoveServiceServerLink(serverLink);
+                ServiceManager.Instance.RemoveServiceServerLinkAsync(serverLink);
+                serverLink.Dispose();
                 serverLink = null;
             }
         }
@@ -45,28 +56,51 @@ namespace Xamla.Robotics.Ros.Async
         public bool IsValid => !persistent || (!disposed && (serverLink?.IsValid ?? false));
         public string ServiceName => serviceName;
 
-        protected bool PreCall(string service_md5sum)
+        protected void EnterCall()
         {
+            lock (gate)
+            {
+                if (busy)
+                {
+                    throw new Exception("Concurrent calls on a service client are not allowed.");
+                }
+
+                busy = true;
+            }
+        }
+
+        protected void ExitCall()
+        {
+            lock (gate)
+            {
+                busy = false;
+            }
+        }
+
+        protected async Task<bool> PreCall(string service_md5sum)
+        {
+            if (disposed)
+                throw new ObjectDisposedException("ServiceClient instance was disposed");
+
             if (service_md5sum != md5sum)
             {
-                Logger.LogError("Call to service [{0} with md5sum [{1} does not match md5sum when the handle was created([{2}])", serviceName, service_md5sum, md5sum);
-                return false;
+                throw new Exception($"Call to service '{serviceName}' with md5sum '{service_md5sum}' does not match the md5sum that was specified when the handle was created ('{md5sum}').");
             }
 
-            if (serverLink != null && !serverLink.Socket.Connected)
+            if (serverLink != null && !serverLink.IsValid)
             {
                 if (persistent)
-                    Logger.LogWarning("Persistent service client's server link has been dropped. Trying to reconnect to proceed with this call");
+                {
+                    logger.LogWarning("Persistent service client's server link has been dropped. Trying to reconnect to proceed with this call.");
+                }
+                ServiceManager.Instance.RemoveServiceServerLinkAsync(serverLink);
+                serverLink.Dispose();
                 serverLink = null;
             }
 
-            if (disposed && persistent)
-                Logger.LogWarning("Persistent service client is self-resurrecting");
-
-            disposed = false;
-            if (persistent && serverLink == null || !persistent)
+            if (serverLink == null)
             {
-                serverLink = CreateLink();
+                serverLink = await CreateLink();
             }
 
             return true;

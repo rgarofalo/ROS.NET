@@ -13,15 +13,11 @@ namespace Xamla.Robotics.Ros.Async
         internal ServiceClientAsync(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
             : base(serviceName, persistent, headerValues, md5sum)
         {
-            if (persistent)
-            {
-                serverLink = CreateLink();
-            }
         }
 
-        protected override IServiceServerLink CreateLink()
+        protected override async Task<IServiceServerLinkAsync> CreateLink()
         {
-            return ServiceManager.Instance.CreateServiceServerLinkAsync<MReq, MRes>(serviceName, persistent, md5sum, md5sum, headerValues);
+            return await ServiceManager.Instance.CreateServiceServerLinkAsync<MReq, MRes>(serviceName, persistent, md5sum, md5sum, headerValues);
         }
 
         public async Task<(bool, MRes)> Call(MReq request)
@@ -32,16 +28,24 @@ namespace Xamla.Robotics.Ros.Async
 
         public async Task<(bool, MRes)> Call(MReq request, string serviceMd5Sum)
         {
-            if (!PreCall(serviceMd5Sum) || serverLink == null)
+            try
             {
-                Dispose();
-                return (false, null);
+                EnterCall();
+
+                if (!await PreCall(serviceMd5Sum) || serverLink == null || !serverLink.IsValid)
+                {
+                    return (false, null);
+                }
+
+                (bool result, RosMessage response) = await serverLink.Call(request);
+
+                var responseMessage = (MRes)response;
+                return (result, responseMessage);
             }
-
-            (bool result, RosMessage response) = await serverLink.Call(request);
-
-            var responseMessage = (MRes)response;
-            return (result, responseMessage);
+            finally
+            {
+                ExitCall();
+            }
         }
     }
 
@@ -52,13 +56,9 @@ namespace Xamla.Robotics.Ros.Async
         internal ServiceClientAsync(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
             : base(serviceName, persistent, headerValues, md5sum)
         {
-            if (persistent)
-            {
-                serverLink = CreateLink();
-            }
         }
 
-        protected override IServiceServerLink CreateLink()
+        protected override Task<IServiceServerLinkAsync> CreateLink()
         {
             return ServiceManager.Instance.CreateServiceServerLinkAsync<MSrv>(serviceName, persistent, md5sum, md5sum, headerValues);
         }
@@ -71,14 +71,22 @@ namespace Xamla.Robotics.Ros.Async
 
         public async Task<bool> Call(MSrv srv, string serviceMd5Sum)
         {
-            if (!PreCall(serviceMd5Sum) || serverLink == null)
+            try
             {
-                Dispose();
-                return false;
-            }
+                EnterCall();
 
-            bool result = await serverLink.Call(srv);
-            return result;
+                if (!await PreCall(serviceMd5Sum) || serverLink == null || !serverLink.IsValid)
+                {
+                    return false;
+                }
+
+                bool result = await serverLink.Call(srv);
+                return result;
+            }
+            finally
+            {
+                ExitCall();
+            }
         }
     }
 }

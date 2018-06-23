@@ -11,7 +11,7 @@ namespace Uml.Robotics.Ros
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<Header>();
         public IDictionary<string, string> Values = new Dictionary<string, string>();
 
-        public bool Parse(byte[] buffer, int size, ref string error_msg)
+        public bool Parse(byte[] buffer, int size, out string errorMsg)
         {
             int i = 0;
             while (i < size)
@@ -33,11 +33,12 @@ namespace Uml.Robotics.Ros
 
             if (i != size)
             {
-                error_msg = "Could not parse connection header.";
-                Logger.LogWarning(error_msg);
+                errorMsg = "Could not parse connection header.";
+                Logger.LogWarning(errorMsg);
                 return false;
             }
 
+            errorMsg = null;
             return true;
         }
 

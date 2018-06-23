@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -411,6 +412,40 @@ namespace Uml.Robotics.Ros
             ops.service = resolveName(ops.service);
             ops.md5sum = new MSrv().RequestMessage.MD5Sum();
             return new ServiceClient<MSrv>(ops.service, ops.persistent, ops.header_values, ops.md5sum);
+        }
+
+        public ServiceClientAsync<MReq, MRes> ServiceClientAsync<MReq, MRes>(
+            string serviceName,
+            bool persistent = false,
+            IDictionary<string, string> headerValues = null
+        )
+            where MReq : RosMessage, new()
+            where MRes : RosMessage, new() =>
+            ServiceClientAsync<MReq, MRes>(new ServiceClientOptions(serviceName, persistent, headerValues));
+
+        public ServiceClientAsync<MReq, MRes> ServiceClientAsync<MReq, MRes>(ServiceClientOptions ops)
+            where MReq : RosMessage, new()
+            where MRes : RosMessage, new()
+        {
+            ops.service = resolveName(ops.service);
+            ops.md5sum = new MReq().MD5Sum();
+            return new ServiceClientAsync<MReq, MRes>(ops.service, ops.persistent, ops.header_values, ops.md5sum);
+        }
+
+        public ServiceClientAsync<MSrv> ServiceClientAsync<MSrv>(
+            string serviceName,
+            bool persistent = false,
+            IDictionary<string, string> headerValues = null
+        )
+        where MSrv : RosService, new() =>
+            ServiceClientAsync<MSrv>(new ServiceClientOptions(serviceName, persistent, headerValues));
+
+        public ServiceClientAsync<MSrv> ServiceClientAsync<MSrv>(ServiceClientOptions ops)
+            where MSrv : RosService, new()
+        {
+            ops.service = resolveName(ops.service);
+            ops.md5sum = new MSrv().RequestMessage.MD5Sum();
+            return new ServiceClientAsync<MSrv>(ops.service, ops.persistent, ops.header_values, ops.md5sum);
         }
 
         private void construct(string ns, bool validate_name)

@@ -201,8 +201,8 @@ namespace Uml.Robotics.Ros
                 return false;
             }
 
-            string error_msg = "";
-            if (!header.Parse(data, (int) size, ref error_msg))
+            string error_msg;
+            if (!header.Parse(data, (int) size, out error_msg))
             {
                 drop(DropReason.HeaderError);
                 return false;
