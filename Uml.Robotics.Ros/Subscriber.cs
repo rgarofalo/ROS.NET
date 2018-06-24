@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -55,9 +57,9 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     Shutdown a subscriber gracefully.
         /// </summary>
-        public override void shutdown()
+        public override async Task Shutdown()
         {
-            unsubscribe();
+            await Unsubscribe();
         }
     }
 
@@ -68,13 +70,13 @@ namespace Uml.Robotics.Ros
             if (topic !=null)
             {
                 this.topic = topic;
-                subscription = TopicManager.Instance.getSubscription(topic);
+                subscription = TopicManager.Instance.GetSubscription(topic);
             }
         }
 
         public ISubscriptionCallbackHelper helper;
         public NodeHandle nodehandle;
-        protected Subscription subscription;
+        internal Subscription subscription;
         public string topic = "";
         public bool unsubscribed;
 
@@ -83,20 +85,20 @@ namespace Uml.Robotics.Ros
             get { return !unsubscribed; }
         }
 
-        public virtual void unsubscribe()
+        public virtual async Task Unsubscribe()
         {
             if (!unsubscribed)
             {
                 unsubscribed = true;
-                TopicManager.Instance.unsubscribe(topic, helper);
+                await TopicManager.Instance.Unsubscribe(topic, helper);
             }
         }
 
-        public abstract void shutdown();
+        public abstract Task Shutdown();
 
         public void Dispose()
         {
-            shutdown();
+            Shutdown().Wait();
         }
     }
 }

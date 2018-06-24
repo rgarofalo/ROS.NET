@@ -20,7 +20,7 @@ namespace Uml.Robotics.Ros
             get { return !unadvertised; }
         }
 
-        public void shutdown()
+        public void Shutdown()
         {
             unadvertise();
         }

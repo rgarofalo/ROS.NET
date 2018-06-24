@@ -19,22 +19,22 @@ namespace Uml.Robotics.Ros
         static Dictionary<string, XmlRpcValue> cachedValues = new Dictionary<string, XmlRpcValue>();        // cache contains mapped keys
         static Dictionary<string, List<ParamDelegate>> subscriptions = new Dictionary<string, List<ParamDelegate>>();
 
-        public static void Subscribe(string key, ParamBoolDelegate callback) =>
+        public static Task Subscribe(string key, ParamBoolDelegate callback) =>
             SubscribeInternal(key, (name, value) => callback(name, value.GetBool()));
 
-        public static void Subscribe(string key, ParamIntDelegate callback) =>
+        public static Task Subscribe(string key, ParamIntDelegate callback) =>
             SubscribeInternal(key, (name, value) => callback(name, value.GetInt()));
 
-        public static void Subscribe(string key, ParamDoubleDelegate callback) =>
+        public static Task Subscribe(string key, ParamDoubleDelegate callback) =>
             SubscribeInternal(key, (name, value) => callback(name, value.GetDouble()));
 
-        public static void Subscribe(string key, ParamStringDelegate callback) =>
+        public static Task Subscribe(string key, ParamStringDelegate callback) =>
             SubscribeInternal(key, (name, value) => callback(name, value.GetString()));
 
-        public static void Subscribe(string key, ParamDelegate callback) =>
+        public static Task Subscribe(string key, ParamDelegate callback) =>
             SubscribeInternal(key, callback);
 
-        private static void SubscribeInternal(string key, ParamDelegate callback)
+        private static async Task SubscribeInternal(string key, ParamDelegate callback)
         {
             string mappedKey = Names.Resolve(key);
             XmlRpcValue parm = new XmlRpcValue();
@@ -42,11 +42,13 @@ namespace Uml.Robotics.Ros
             parm.Set(1, XmlRpcManager.Instance.Uri);
             parm.Set(2, mappedKey);
 
+            var result = new XmlRpcValue();
+            var payload = new XmlRpcValue();
+            bool success = await Master.ExecuteAsync("subscribeParam", parm, result, payload, false);
+
             lock (gate)
             {
-                var result = new XmlRpcValue();
-                var payload = new XmlRpcValue();
-                if (Master.Execute("subscribeParam", parm, result, payload, false))
+                if (success)
                 {
                     if (!subscriptions.TryGetValue(key, out var list))
                     {
@@ -56,20 +58,21 @@ namespace Uml.Robotics.Ros
                     list.Add(callback);
                 }
             }
+
             Update(key, GetParam(key, true));
         }
 
         /// <summary>
-        ///     Sets the paramater on the parameter server
+        ///     Sets the parameter on the parameter server
         /// </summary>
-        /// <param name="mappedKey">Fully mapped name of the parameter to be set</param>
-        /// <param name="val">Value of the paramter</param>
+        /// <param name="key">Name of the parameter</param>
+        /// <param name="parm">Value of the paramter</param>
         private static void SetOnServer(string key, XmlRpcValue parm)
         {
             string mappedKey = Names.Resolve(key);
             parm.Set(0, ThisNode.Name);
             parm.Set(1, mappedKey);
-            // parm.Set(2, ...), the value to be set on the parameter server was stored in parm by the calling function already )
+            // parm.Set(2, ...); the value to be set on the parameter server was stored in parm by the calling function already
 
             lock (gate)
             {
@@ -82,67 +85,67 @@ namespace Uml.Robotics.Ros
                 }
                 else
                 {
-                    throw new RosException("RPC call setParam for key " + mappedKey + " failed. ");
+                    throw new RosException($"RPC call setParam for key '{mappedKey}' failed. ");
                 }
             }
         }
 
         /// <summary>
-        ///     Sets the paramater on the parameter server
+        ///     Sets the parameter on the parameter server
         /// </summary>
         /// <param name="key">Name of the parameter</param>
         /// <param name="val">Value of the paramter</param>
         public static void Set(string key, XmlRpcValue val)
         {
-            XmlRpcValue parm = new XmlRpcValue();
+            var parm = new XmlRpcValue();
             parm.Set(2, val);
             SetOnServer(key, parm);
         }
 
         /// <summary>
-        ///     Sets the paramater on the parameter server
+        ///     Sets the parameter on the parameter server
         /// </summary>
         /// <param name="key">Name of the parameter</param>
         /// <param name="val">Value of the paramter</param>
         public static void Set(string key, string val)
         {
-            XmlRpcValue parm = new XmlRpcValue();
+            var parm = new XmlRpcValue();
             parm.Set(2, val);
             SetOnServer(key, parm);
         }
 
         /// <summary>
-        ///     Sets the paramater on the parameter server
+        ///     Sets the parameter on the parameter server
         /// </summary>
         /// <param name="key">Name of the parameter</param>
         /// <param name="val">Value of the paramter</param>
         public static void Set(string key, double val)
         {
-            XmlRpcValue parm = new XmlRpcValue();
+            var parm = new XmlRpcValue();
             parm.Set(2, val);
             SetOnServer(key, parm);
         }
 
         /// <summary>
-        ///     Sets the paramater on the parameter server
+        ///     Sets the parameter on the parameter server
         /// </summary>
         /// <param name="key">Name of the parameter</param>
         /// <param name="val">Value of the paramter</param>
         public static void Set(string key, int val)
         {
-            XmlRpcValue parm = new XmlRpcValue();
+            var parm = new XmlRpcValue();
             parm.Set(2, val);
             SetOnServer(key, parm);
         }
 
         /// <summary>
-        ///     Sets the paramater on the parameter server
+        ///     Sets the parameter on the parameter server
         /// </summary>
         /// <param name="key">Name of the parameter</param>
         /// <param name="val">Value of the paramter</param>
         public static void Set(string key, bool val)
         {
-            XmlRpcValue parm = new XmlRpcValue();
+            var parm = new XmlRpcValue();
             parm.Set(2, val);
             SetOnServer(key, parm);
         }

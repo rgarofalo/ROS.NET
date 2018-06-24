@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -28,16 +30,17 @@ namespace Uml.Robotics.Ros
         public void publish(M msg)
         {
             if (p == null)
-                p = TopicManager.Instance.lookupPublication(topic);
+                p = TopicManager.Instance.LookupPublication(topic);
             if (p != null)
             {
                 msg.Serialized = null;
-                TopicManager.Instance.publish(p, msg);
+                TopicManager.Instance.Publish(p, msg);
             }
         }
     }
 
     public class IPublisher
+        : IDisposable
     {
         public SubscriberCallbacks callbacks;
 
@@ -52,18 +55,19 @@ namespace Uml.Robotics.Ros
             get { return !unadvertised; }
         }
 
-        internal void unadvertise()
+        internal async Task Unadvertise()
         {
             if (!unadvertised)
             {
                 unadvertised = true;
-                TopicManager.Instance.unadvertise(topic, callbacks);
+                await TopicManager.Instance.Unadvertise(topic, callbacks);
             }
         }
 
-        public void shutdown()
+        public void Dispose()
         {
-            unadvertise();
+            var t = Unadvertise();
+            t.WhenCompleted().Wait();
         }
     }
 }

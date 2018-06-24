@@ -12,7 +12,7 @@ namespace Uml.Robotics.Ros
         where MReq : RosMessage
         where MRes : RosMessage
     {
-        public IDictionary<string, string> ConnectionHeader { get; } = new Dictionary<string, string>();
+        public IDictionary<string, string> ConnectionHeader { get; set; } = new Dictionary<string, string>();
         public MReq Request { get; set; }
         public MRes Response { get; set; }
 
@@ -22,7 +22,7 @@ namespace Uml.Robotics.Ros
 
     public interface IServiceCallbackHelperParams
     {
-        IDictionary<string, string> ConnectionHeader { get; }
+        IDictionary<string, string> ConnectionHeader { get; set; }
         RosMessage Request { get; }
         RosMessage Response { get; }
     }
@@ -40,7 +40,10 @@ namespace Uml.Robotics.Ros
 
         internal bool Call(ServiceCallbackHelperParams<MReq, MRes> parms)
         {
-            return callback.Invoke(parms.Request, ref parms.Response);
+            MRes response = parms.Response;
+            bool result = callback.Invoke(parms.Request, ref response);
+            parms.Response = response;
+            return result;
         }
     }
 

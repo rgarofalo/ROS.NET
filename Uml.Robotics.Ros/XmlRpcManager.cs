@@ -78,10 +78,13 @@ namespace Uml.Robotics.Ros
 
         public void Dispose()
         {
-            if (disposed)
-                return;
+            lock (gate)
+            {
+                if (disposed)
+                    return;
+                disposed = true;
+            }
 
-            disposed = true;
             serverThread.Join();
             server.Shutdown();
 
@@ -208,7 +211,7 @@ namespace Uml.Robotics.Ros
             else
             {
                 this.port = port;
-                this.uri = ROS.ROS_MASTER_URI;       // if port is not 0 we are be the master
+                this.uri = ROS.ROS_MASTER_URI;       // if port is non-zero we are the master
             }
 
             logger.LogInformation("XmlRpc Server listening at " + uri);

@@ -6,9 +6,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Uml.Robotics.Ros;
+using Xamla.Robotics.Ros.Async;
 
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
     public class ConnectionError : Exception
     {
@@ -18,37 +18,53 @@ namespace Xamla.Robotics.Ros.Async
         }
     }
 
-    public class ConnectionAsync
+    public delegate void ConnectionDisposeHandler(Connection connection);
+
+    public class Connection
+        : IDisposable
     {
         public const int MESSAGE_SIZE_LIMIT = 1000000000;
 
-        readonly ILogger logger;
-        TcpClient client;
-        NetworkStream stream;
-        public Header header = new Header();
+        private readonly ILogger logger;
+        private TcpClient client;
 
-        // connection values read from header
-        string topic;
+        private bool disposed;
+        private string topic;
 
-        bool sendingHeaderError;
+        public NetworkStream Stream { get; }
+        public Socket Socket => client.Client;
+        public Header Header { get; } = new Header();
 
-        public ConnectionAsync(TcpClient client)
+        public Connection(TcpClient client)
         {
             this.client = client;
-            this.stream = client.GetStream();
-            this.logger = ApplicationLogging.CreateLogger<ConnectionAsync>();
+            this.Stream = client.GetStream();
+            this.logger = ApplicationLogging.CreateLogger<Connection>();
         }
 
-        public NetworkStream Stream => stream;
-        public System.Net.Sockets.Socket Socket => client.Client;
+        public void Dispose()
+        {
+            if (disposed)
+                return;
+
+            disposed = true;
+            client?.Dispose();
+            client = null;
+            Disposed?.Invoke(this);
+        }
+
+        public event ConnectionDisposeHandler Disposed;
+
+        public bool IsValid
+             => !disposed && client.Connected;
 
         /// <summary>Returns the ID of the connection</summary>
         public string CallerId
         {
             get
             {
-                if (header != null && header.Values.ContainsKey("callerid"))
-                    return header.Values["callerid"];
+                if (Header != null && Header.Values.ContainsKey("callerid"))
+                    return Header.Values["callerid"];
                 return string.Empty;
             }
         }
@@ -64,33 +80,33 @@ namespace Xamla.Robotics.Ros.Async
 
             byte[] headerBuffer = await this.ReadBlock(length, cancel);
 
-            if (!header.Parse(headerBuffer, length, out string errorMessage))
+            if (!Header.Parse(headerBuffer, length, out string errorMessage))
             {
                 throw new ConnectionError(errorMessage);
             }
 
-            if (header.Values.ContainsKey("error"))
+            if (Header.Values.ContainsKey("error"))
             {
-                string error = header.Values["error"];
+                string error = Header.Values["error"];
                 logger.LogInformation("Received error message in header for connection to [{0}]: [{1}]",
                     "TCPROS connection to [" + this.Socket.RemoteEndPoint + "]", error);
                 throw new ConnectionError(error);
             }
 
-            if (topic == null && header.Values.ContainsKey("topic"))
+            if (topic == null && Header.Values.ContainsKey("topic"))
             {
-                topic = header.Values["topic"];
+                topic = Header.Values["topic"];
             }
 
-            if (header.Values.ContainsKey("tcp_nodelay"))
+            if (Header.Values.ContainsKey("tcp_nodelay"))
             {
-                if (header.Values["tcp_nodelay"] == "1")
+                if (Header.Values["tcp_nodelay"] == "1")
                 {
                     this.Socket.NoDelay = true;
                 }
             }
 
-            return header.Values;
+            return Header.Values;
         }
 
         public async Task SendHeaderError(string errorMessage, CancellationToken cancel)
@@ -100,7 +116,6 @@ namespace Xamla.Robotics.Ros.Async
                 { "error", errorMessage }
             };
 
-            sendingHeaderError = true;
             await WriteHeader(header, cancel);
         }
 
@@ -113,7 +128,7 @@ namespace Xamla.Robotics.Ros.Async
             Buffer.BlockCopy(BitConverter.GetBytes(headerLength), 0, messageBuffer, 0, 4);
             Buffer.BlockCopy(headerBuffer, 0, messageBuffer, 4, headerBuffer.Length);
 
-            await stream.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancel);
+            await Stream.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancel);
         }
 
         public async Task<byte[]> ReadBlock(int size, CancellationToken cancel)
@@ -125,7 +140,7 @@ namespace Xamla.Robotics.Ros.Async
 
         public async Task ReadBlock(ArraySegment<byte> buffer, CancellationToken cancel)
         {
-            if (!await stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel))
+            if (!await Stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel))
             {
                 throw new EndOfStreamException("Connection closed gracefully");
             }
@@ -133,13 +148,7 @@ namespace Xamla.Robotics.Ros.Async
 
         public async Task Write(byte[] buffer, int offset, int count, CancellationToken cancel)
         {
-            await stream.WriteAsync(buffer, offset, count, cancel);
-        }
-
-        public void Dispose()
-        {
-            client?.Dispose();
-            client = null;
+            await Stream.WriteAsync(buffer, offset, count, cancel);
         }
     }
 }

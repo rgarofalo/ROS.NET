@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
@@ -28,23 +29,27 @@ namespace Uml.Robotics.Ros
                 has_tracked_object = true;
         }
 
-        public override void processRequest(ref byte[] buf, int num_bytes, IServiceClientLink link)
+        public override Task ProcessRequest(byte[] buf, int num_bytes, IServiceClientLink link)
         {
             var cb = new ServiceCallback(this, helper, buf, num_bytes, link, has_tracked_object, tracked_object);
             this.callbackId = cb.Uid;
             callback.AddCallback(cb);
         }
 
-        internal override void addServiceClientLink(IServiceClientLink iServiceClientLink)
+        internal override void AddServiceClientLink(IServiceClientLink iServiceClientLink)
         {
-            lock (client_links_mutex)
-                client_links.Add(iServiceClientLink);
+            lock (gate)
+            {
+                clientLinks.Add(iServiceClientLink);
+            }
         }
 
-        internal override void removeServiceClientLink(IServiceClientLink iServiceClientLink)
+        internal override void RemoveServiceClientLink(IServiceClientLink iServiceClientLink)
         {
-            lock (client_links_mutex)
-                client_links.Remove(iServiceClientLink);
+            lock (gate)
+            {
+                clientLinks.Remove(iServiceClientLink);
+            }
         }
 
         public class ServiceCallback : CallbackInterface
@@ -76,7 +81,7 @@ namespace Uml.Robotics.Ros
 
             internal override CallResult Call()
             {
-                if (link.connection.dropped)
+                if (!link.Connection.IsValid)
                 {
                     return CallResult.Invalid;
                 }
@@ -85,21 +90,20 @@ namespace Uml.Robotics.Ros
                 {
                     Request = new MReq(),
                     Response = new MRes(),
-                    ConnectionHeader = link.connection.header.Values
+                    ConnectionHeader = link.Connection.Header.Values
                 };
                 parms.Request.Deserialize(buffer);
 
                 try
                 {
                     bool ok = isp.helper.Call(parms);
-                    link.processResponse(parms.Response, ok);
+                    link.ProcessResponse(parms.Response, ok);
                 }
                 catch (Exception e)
                 {
                     string str = "Exception thrown while processing service call: " + e;
                     ROS.Error()(str);
-                    Logger.LogError(str);
-                    link.processResponse(str, false);
+                    link.ProcessResponse(str, false);
                     return CallResult.Invalid;
                 }
                 return CallResult.Success;
@@ -120,8 +124,8 @@ namespace Uml.Robotics.Ros
     public abstract class IServicePublication
     {
         internal ICallbackQueue callback;
-        internal List<IServiceClientLink> client_links = new List<IServiceClientLink>();
-        protected object client_links_mutex = new object();
+        internal List<IServiceClientLink> clientLinks = new List<IServiceClientLink>();
+        protected object gate = new object();
         protected long callbackId = -1;
         internal string datatype;
         internal bool has_tracked_object;
@@ -132,36 +136,36 @@ namespace Uml.Robotics.Ros
         internal string res_datatype;
         internal object tracked_object;
 
-        internal void drop()
+        internal void Drop()
         {
-            lock (client_links_mutex)
+            lock (gate)
             {
                 isDropped = true;
             }
-            dropAllConnections();
+            DropAllConnections();
             if (callbackId >= 0)
             {
                 callback.RemoveById(callbackId);
             }
         }
 
-        private void dropAllConnections()
+        private void DropAllConnections()
         {
             List<IServiceClientLink> links;
-            lock (client_links_mutex)
+            lock (gate)
             {
-                links = new List<IServiceClientLink>(client_links);
-                client_links.Clear();
+                links = new List<IServiceClientLink>(clientLinks);
+                clientLinks.Clear();
             }
 
             foreach (IServiceClientLink iscl in links)
             {
-                iscl.connection.drop(Connection.DropReason.Destructing);
+                iscl.Connection.Dispose();
             }
         }
 
-        internal abstract void addServiceClientLink(IServiceClientLink iServiceClientLink);
-        internal abstract void removeServiceClientLink(IServiceClientLink iServiceClientLink);
-        public abstract void processRequest(ref byte[] buffer, int size, IServiceClientLink iServiceClientLink);
+        internal abstract void AddServiceClientLink(IServiceClientLink iServiceClientLink);
+        internal abstract void RemoveServiceClientLink(IServiceClientLink iServiceClientLink);
+        public abstract Task ProcessRequest(byte[] buffer, int size, IServiceClientLink iServiceClientLink);
     }
 }

@@ -1,13 +1,12 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Threading;
-using Uml.Robotics.XmlRpc;
-using Microsoft.Extensions.Logging;
-using System.Threading.Tasks;
-using Xamla.Robotics.Ros.Async;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
+using Uml.Robotics.XmlRpc;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -19,8 +18,8 @@ namespace Uml.Robotics.Ros
         internal static void Terminate() => Instance.Shutdown();
         internal static void Reset() => instance = new Lazy<ServiceManager>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private ILogger logger = ApplicationLogging.CreateLogger<ServiceManager>();
-        private object gate = new object();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceManager>();
+        private readonly object gate = new object();
         private ConnectionManager connectionManager;
         private List<IServicePublication> servicePublications = new List<IServicePublication>();
         private HashSet<IServiceServerLinkAsync> serviceServerLinksAsync = new HashSet<IServiceServerLinkAsync>();
@@ -29,7 +28,6 @@ namespace Uml.Robotics.Ros
 
         public void Start()
         {
-            shuttingDown = false;
             connectionManager = ConnectionManager.Instance;
             xmlRpcManager = XmlRpcManager.Instance;
         }
@@ -73,7 +71,7 @@ namespace Uml.Robotics.Ros
             string requestMd5Sum,
             string responseMd5Sum,
             IDictionary<string, string> headerValues,
-            Action<ServiceServerLinkAsync> initialize
+            Action<ServiceServerLink> initialize
         )
         {
             (string host, int port) = await LookupServiceAsync(service);
@@ -82,8 +80,8 @@ namespace Uml.Robotics.Ros
             await client.ConnectAsync(host, port);
             client.NoDelay = true;
 
-            var connection = new ConnectionAsync(client);
-            var link = new ServiceServerLinkAsync(connection, service, persistent, requestMd5Sum, responseMd5Sum, headerValues);
+            var connection = new Connection(client);
+            var link = new ServiceServerLink(connection, service, persistent, requestMd5Sum, responseMd5Sum, headerValues);
             initialize(link);
 
             lock (gate)
@@ -183,7 +181,7 @@ namespace Uml.Robotics.Ros
             if (pub != null)
             {
                 UnregisterService(pub.name);
-                pub.drop();
+                pub.Drop();
                 return true;
             }
             return false;
@@ -201,7 +199,7 @@ namespace Uml.Robotics.Ros
                 foreach (IServicePublication sp in servicePublications)
                 {
                     UnregisterService(sp.name);
-                    sp.drop();
+                    sp.Drop();
                 }
                 servicePublications.Clear();
 
@@ -225,24 +223,19 @@ namespace Uml.Robotics.Ros
                 logger.LogWarning("Service [{0}]: Not available at ROS master", name);
                 return false;
             }
-            string serv_uri = payload.GetString();
-            if (serv_uri.Length == 0)
+            string serviceUri = payload.GetString();
+            if (serviceUri.Length == 0)
             {
                 logger.LogError("Service [{0}]: Empty server URI returned from master", name);
                 return false;
             }
-            if (!Network.SplitUri(serv_uri, out serviceHost, out servicePort))
+            if (!Network.SplitUri(serviceUri, out serviceHost, out servicePort))
             {
-                logger.LogError("Service [{0}]: Bad service uri [{0}]", name, serv_uri);
+                logger.LogError("Service [{0}]: Bad service uri [{0}]", name, serviceUri);
                 return false;
             }
             return true;
         }
-
-        //internal bool LookUpService(string mappedName, string host, int port)
-        //{
-        //    return LookupService(mappedName, ref host, ref port);
-        //}
 
         internal bool LookUpService(string mappedName, ref string host, ref int port)
         {
@@ -251,8 +244,10 @@ namespace Uml.Robotics.Ros
 
         private bool IsServiceAdvertised(string serviceName)
         {
-            List<IServicePublication> sp = new List<IServicePublication>(servicePublications);
-            return sp.Any(s => s.name == serviceName && !s.isDropped);
+            lock (gate)
+            {
+                return servicePublications.Any(s => s.name == serviceName && !s.isDropped);
+            }
         }
 
         private bool UnregisterService(string service)
@@ -263,6 +258,7 @@ namespace Uml.Robotics.Ros
             args.Set(2, string.Format("rosrpc://{0}:{1}", Network.Host, connectionManager.TCPPort));
 
             bool unregisterSuccess = false;
+
             try
             {
                 unregisterSuccess = Master.Execute("unregisterService", args, result, payload, false);
@@ -271,6 +267,7 @@ namespace Uml.Robotics.Ros
             {
                 // ignore exception during unregister
             }
+
             return unregisterSuccess;
         }
     }

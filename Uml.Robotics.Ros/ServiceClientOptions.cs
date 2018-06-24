@@ -7,7 +7,7 @@ namespace Uml.Robotics.Ros
         public IDictionary<string, string> HeaderValues { get; }
         public string md5sum { get; }
         public bool Persistent { get;  }
-        public string service { get; }
+        public string service { get;}
 
         public ServiceClientOptions(string service, bool persistent, IDictionary<string, string> headerValues)
             : this(service, persistent, headerValues, "*")

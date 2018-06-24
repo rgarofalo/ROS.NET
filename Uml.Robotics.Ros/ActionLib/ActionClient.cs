@@ -150,12 +150,12 @@ namespace Uml.Robotics.Ros.ActionLib
 
         public void Shutdown()
         {
-            statusSubscriber.shutdown();
-            feedbackSubscriber.shutdown();
-            resultSubscriber.shutdown();
-            GoalPublisher.shutdown();
-            CancelPublisher.shutdown();
-            nodeHandle.Shutdown();
+            statusSubscriber.Dispose();
+            feedbackSubscriber.Dispose();
+            resultSubscriber.Dispose();
+            GoalPublisher.Dispose();
+            CancelPublisher.Dispose();
+            nodeHandle.Dispose();
         }
 
 

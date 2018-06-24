@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,31 +28,38 @@ namespace Uml.Robotics.Ros
                 return false;
             }
 
-            var transport = new TcpTransport();
-            if (!transport.connect(host, port))
+            using (var tcpClient = new TcpClient())
             {
-                if (logFailureReason)
+                try
                 {
-                    ROS.Info()("waitForService: Service[{0}] could not connect to host [{1}:{2}], waiting...", mappedName, host, port);
+                    await tcpClient.ConnectAsync(host, port);
+                }
+                catch
+                {
+                    if (logFailureReason)
+                    {
+                        ROS.Info()("waitForService: Service[{0}] could not connect to host [{1}:{2}], waiting...", mappedName, host, port);
+                    }
+
+                    return false;
                 }
 
-                return false;
+                var headerFields = new Dictionary<string, string>
+                {
+                    { "probe", "1" },
+                    { "md5sum", "*" },
+                    { "callerid", ThisNode.Name },
+                    { "service", mappedName }
+                };
+
+                Header.Write(headerFields, out byte[] headerbuf, out int size);
+
+                byte[] sizebuf = BitConverter.GetBytes(size);
+
+                var stream = tcpClient.GetStream();
+                await stream.WriteAsync(sizebuf, 0, sizebuf.Length);
+                await stream.WriteAsync(headerbuf, 0, size);
             }
-
-            var headerFields = new Dictionary<string, string>
-            {
-                { "probe", "1" },
-                { "md5sum", "*" },
-                { "callerid", ThisNode.Name },
-                { "service", mappedName }
-            };
-
-            Header.Write(headerFields, out byte[] headerbuf, out int size);
-
-            byte[] sizebuf = BitConverter.GetBytes(size);
-
-            transport.write(sizebuf, 0, sizebuf.Length);
-            transport.write(headerbuf, 0, size);
 
             return true;
         }

@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Messages.rosgraph_msgs;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Messages.rosgraph_msgs;
 using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
@@ -38,22 +37,18 @@ namespace Uml.Robotics.Ros
             instance = new Lazy<RosOutAppender>(LazyThreadSafetyMode.ExecutionAndPublication);
 
         private AsyncQueue<Log> queue = new AsyncQueue<Log>(10000);
-        private Task publishLoop;
-        private Publisher<Log> publisher;
+        private Task publishLoopTask;
+        private TopicManager topicManager;
 
         public RosOutAppender()
         {
+            topicManager = TopicManager.Instance;
         }
 
         public void Dispose()
         {
             queue.OnCompleted();
-            publishLoop.Wait();
-            if (publisher != null)
-            {
-                publisher.shutdown();
-                publisher = null;
-            }
+            publishLoopTask.WhenCompleted().Wait();
         }
 
         public bool Started
@@ -62,7 +57,7 @@ namespace Uml.Robotics.Ros
             {
                 lock (queue)
                 {
-                    return publishLoop != null && !publishLoop.IsCompleted && !queue.IsCompleted;
+                    return publishLoopTask != null;
                 }
             }
         }
@@ -71,12 +66,10 @@ namespace Uml.Robotics.Ros
         {
             lock (queue)
             {
-                if (!queue.IsCompleted && publishLoop == null)
-                {
-                    if (publisher == null)
-                        publisher = ROS.GlobalNodeHandle.Advertise<Log>("/rosout", 0);
-                    publishLoop = PublishLoopAsync();
-                }
+                if (queue.IsCompleted || publishLoopTask != null)
+                    return;
+
+                publishLoopTask = PublishLoopAsync();
             }
         }
 
@@ -92,16 +85,19 @@ namespace Uml.Robotics.Ros
                 level = (byte)level,
                 header = new Messages.std_msgs.Header { stamp = ROS.GetTime() }
             };
-            TopicManager.Instance.getAdvertisedTopics(out logMessage.topics);
+            logMessage.topics = topicManager.GetAdvertisedTopics();
             queue.TryOnNext(logMessage);
         }
 
         private async Task PublishLoopAsync()
         {
-            while (!await queue.MoveNext(default(CancellationToken)))
+            using (var publisher = await ROS.GlobalNodeHandle.AdvertiseAsync<Log>("/rosout", 0))
             {
-                Log entry = queue.Current;
-                publisher.publish(entry);
+                while (!await queue.MoveNext(default(CancellationToken)))
+                {
+                    Log entry = queue.Current;
+                    publisher.publish(entry);
+                }
             }
         }
     }

@@ -2,17 +2,16 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Uml.Robotics.Ros;
 
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
-    public abstract class ServiceClientAsyncBase
+    public abstract class ServiceClientBase
         : IDisposable
     {
         private bool disposed;
 
-        protected object gate = new object();
-        protected ILogger logger = ApplicationLogging.CreateLogger<ServiceClientAsyncBase>();
+        protected readonly object gate = new object();
+        protected readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceClientBase>();
 
         protected string serviceName;
         protected bool persistent;
@@ -22,7 +21,7 @@ namespace Xamla.Robotics.Ros.Async
         protected IServiceServerLinkAsync serverLink;
         protected bool busy;
 
-        public ServiceClientAsyncBase(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
+        public ServiceClientBase(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
         {
             this.serviceName = serviceName;
             this.persistent = persistent;

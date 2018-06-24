@@ -19,7 +19,7 @@ namespace Uml.Robotics.Ros
 
         private readonly ILogger logger = ApplicationLogging.CreateLogger<TransportPublisherLink>();
 
-        ConnectionAsync connection;
+        Connection connection;
         bool dropping;
 
         string host;
@@ -27,10 +27,10 @@ namespace Uml.Robotics.Ros
 
         CancellationTokenSource cts;
         CancellationToken cancel;
-        Task publisherLoop;
+        Task receiveLoop;
         TimeSpan retryDelay;
 
-        public TransportPublisherLink(SubscriptionAsync parent, string xmlRpcUri)
+        public TransportPublisherLink(Subscription parent, string xmlRpcUri)
             : base(parent, xmlRpcUri)
         {
             retryDelay = BASE_RETRY_DELAY;
@@ -43,9 +43,9 @@ namespace Uml.Robotics.Ros
             dropping = true;
             cts.Cancel();
             Parent.RemovePublisherLink(this);
-            if (publisherLoop != null)
+            if (receiveLoop != null)
             {
-                publisherLoop.Wait();       // wait for publisher loop to terminate
+                receiveLoop.Wait();       // wait for publisher loop to terminate
             }
         }
 
@@ -72,7 +72,7 @@ namespace Uml.Robotics.Ros
 
                 try
                 {
-                    this.connection = new ConnectionAsync(client);
+                    this.connection = new Connection(client);
 
                     // write/read header handshake
                     await WriteHeader();
@@ -85,9 +85,9 @@ namespace Uml.Robotics.Ros
                         var lengthBuffer = await connection.ReadBlock(4, cancel);
                         int length = BitConverter.ToInt32(lengthBuffer, 0);
 
-                        if (length > ConnectionAsync.MESSAGE_SIZE_LIMIT)
+                        if (length > Connection.MESSAGE_SIZE_LIMIT)
                         {
-                            var message = $"Message received in TransportPublisherLink exceeds length limit of {ConnectionAsync.MESSAGE_SIZE_LIMIT}. Dropping connection";
+                            var message = $"Message received in TransportPublisherLink exceeds length limit of {Connection.MESSAGE_SIZE_LIMIT}. Dropping connection";
                             throw new RosException(message);
                         }
 
@@ -113,9 +113,9 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        public async Task RunPublisherLoopAsync()
+        public async Task RunReceiveLoopAsync()
         {
-            await Task.Yield();
+            await Task.Yield();     // do not block the thread starting the loop
 
             while (true)
             {
@@ -158,7 +158,7 @@ namespace Uml.Robotics.Ros
             this.host = host;
             this.port = port;
 
-            publisherLoop = RunPublisherLoopAsync();
+            receiveLoop = RunReceiveLoopAsync();
         }
 
         public void HandleMessage<T>(T m)
@@ -168,7 +168,7 @@ namespace Uml.Robotics.Ros
             Stats.MessagesReceived++;
             m.connection_header = this.Header.Values;
             if (Parent != null)
-                Stats.Drops += Parent.HandleMessage(m, true, false, connection.header.Values, this);
+                Stats.Drops += Parent.HandleMessage(m, true, false, connection.Header.Values, this);
             else
                 Console.WriteLine($"{nameof(Parent)} is null");
         }

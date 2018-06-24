@@ -4,7 +4,7 @@
     {
         private SubscriberLink link;
 
-        public SingleSubscriberPublisher(SubscriberLink link)
+        internal SingleSubscriberPublisher(SubscriberLink link)
         {
             this.link = link;
         }
@@ -16,10 +16,11 @@
 
         public string SubscriberName
         {
-            get { return link.destination_caller_id; }
+            get { return link.DestinationCallerId; }
         }
 
-        public void Publish<M>(M message) where M : RosMessage, new()
+        public void Publish<M>(M message)
+            where M : RosMessage, new()
         {
             link.EnqueueMessage(new MessageAndSerializerFunc(message, message.Serialize, true, true));
         }

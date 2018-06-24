@@ -123,23 +123,42 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     Unregister every subscriber and publisher in this node
         /// </summary>
-        public void Shutdown()
+        public async Task Shutdown()
         {
             lock (gate)
             {
                 ok = false;
 
-                foreach (ISubscriber sub in collection.Subscribers)
-                    sub.unsubscribe();
-                foreach (IPublisher pub in collection.Publishers)
-                    pub.unadvertise();
-
-                foreach (ServiceServer srv in collection.ServiceServers)
-                    srv.shutdown();
                 collection.ClearAll();
             }
+
+            foreach (ISubscriber sub in collection.Subscribers)
+                await sub.Unsubscribe();
+
+            foreach (IPublisher pub in collection.Publishers)
+                await pub.Unadvertise();
+
+            foreach (ServiceServer srv in collection.ServiceServers)
+                srv.Shutdown();
+
             Destruct();
         }
+
+        public Publisher<M> Advertise<M>(string topic, int queueSize) where M : RosMessage, new() =>
+            AdvertiseAsync<M>(topic, queueSize).Result;
+
+        public Publisher<M> Advertise<M>(string topic, int queueSize, bool latch) where M : RosMessage, new() =>
+            AdvertiseAsync<M>(topic, queueSize, latch).Result;
+
+        public Publisher<M> Advertise<M>(string topic, int queueSize, SubscriberStatusCallback connectCallback, SubscriberStatusCallback disconnectCallback) where M : RosMessage, new() =>
+            AdvertiseAsync<M>(topic, queueSize, connectCallback, disconnectCallback).Result;
+
+        public Publisher<M> Advertise<M>(string topic, int queueSize, SubscriberStatusCallback connectCallback,
+            SubscriberStatusCallback disconnectCallback, bool latch) where M : RosMessage, new() =>
+            AdvertiseAsync<M>(topic, queueSize, connectCallback, disconnectCallback, latch).Result;
+
+        public Publisher<M> Advertise<M>(AdvertiseOptions<M> ops) where M : RosMessage, new() =>
+           AdvertiseAsync<M>(ops).Result;
 
         /// <summary>
         ///     Creates a publisher
@@ -148,9 +167,9 @@ namespace Uml.Robotics.Ros
         /// <param name="topic">Name of topic</param>
         /// <param name="queueSize">How many messages to qeueue if asynchrinous</param>
         /// <returns>A publisher with the specified topic type, name and options</returns>
-        public async Task<Publisher<M>> Advertise<M>(string topic, int queueSize) where M : RosMessage, new()
+        public async Task<Publisher<M>> AdvertiseAsync<M>(string topic, int queueSize) where M : RosMessage, new()
         {
-            return await Advertise<M>(topic, queueSize, false);
+            return await AdvertiseAsync<M>(topic, queueSize, false);
         }
 
         /// <summary>
@@ -161,9 +180,9 @@ namespace Uml.Robotics.Ros
         /// <param name="queueSize">How many messages to enqueue if asynchrinous</param>
         /// <param name="latch">Boolean determines whether the given publisher will latch or not</param>
         /// <returns>A publisher with the specified topic type, name and options</returns>
-        public async Task<Publisher<M>> Advertise<M>(string topic, int queueSize, bool latch) where M : RosMessage, new()
+        public async Task<Publisher<M>> AdvertiseAsync<M>(string topic, int queueSize, bool latch) where M : RosMessage, new()
         {
-            return await Advertise(new AdvertiseOptions<M>(topic, queueSize) {Latch = latch});
+            return await AdvertiseAsync(new AdvertiseOptions<M>(topic, queueSize) {Latch = latch});
         }
 
         /// <summary>
@@ -175,11 +194,11 @@ namespace Uml.Robotics.Ros
         /// <param name="connectCallback">Callback to fire when this node connects</param>
         /// <param name="disconnectCallback">Callback to fire when this node disconnects</param>
         /// <returns>A publisher with the specified topic type, name and options</returns>
-        public async Task<Publisher<M>> Advertise<M>(string topic, int queueSize, SubscriberStatusCallback connectCallback,
+        public async Task<Publisher<M>> AdvertiseAsync<M>(string topic, int queueSize, SubscriberStatusCallback connectCallback,
             SubscriberStatusCallback disconnectCallback)
             where M : RosMessage, new()
         {
-            return await Advertise<M>(topic, queueSize, connectCallback, disconnectCallback, false);
+            return await AdvertiseAsync<M>(topic, queueSize, connectCallback, disconnectCallback, false);
         }
 
         /// <summary>
@@ -192,11 +211,11 @@ namespace Uml.Robotics.Ros
         /// <param name="disconnectCallback">Callback to fire when this node disconnects</param>
         /// <param name="latch">Boolean determines whether the given publisher will latch or not</param>
         /// <returns>A publisher with the specified topic type, name and options</returns>
-        public async Task<Publisher<M>> Advertise<M>(string topic, int queueSize, SubscriberStatusCallback connectCallback,
+        public async Task<Publisher<M>> AdvertiseAsync<M>(string topic, int queueSize, SubscriberStatusCallback connectCallback,
             SubscriberStatusCallback disconnectCallback, bool latch)
             where M : RosMessage, new()
         {
-            return await Advertise(new AdvertiseOptions<M>(topic, queueSize, connectCallback, disconnectCallback) { Latch = latch });
+            return await AdvertiseAsync(new AdvertiseOptions<M>(topic, queueSize, connectCallback, disconnectCallback) { Latch = latch });
         }
 
         /// <summary>
@@ -205,7 +224,7 @@ namespace Uml.Robotics.Ros
         /// <typeparam name="M">Type of topic</typeparam>
         /// <param name="ops">Advertise options</param>
         /// <returns>A publisher with the specified options</returns>
-        public async Task<Publisher<M>> Advertise<M>(AdvertiseOptions<M> ops)
+        public async Task<Publisher<M>> AdvertiseAsync<M>(AdvertiseOptions<M> ops)
             where M : RosMessage, new()
         {
             ops.topic = ResolveName(ops.topic);
@@ -214,7 +233,7 @@ namespace Uml.Robotics.Ros
                 ops.callbackQueue = Callback;
             }
             var callbacks = new SubscriberCallbacks(ops.connectCB, ops.disconnectCB, ops.callbackQueue);
-            if (await TopicManagerAsync.Instance.Advertise(ops, callbacks))
+            if (await TopicManager.Instance.Advertise(ops, callbacks))
             {
                 var pub = new Publisher<M>(ops.topic, ops.md5Sum, ops.dataType, this, callbacks);
                 lock (gate)
@@ -227,6 +246,20 @@ namespace Uml.Robotics.Ros
             return null;
         }
 
+        public Subscriber Subscribe<M>(string topic, int queueSize, CallbackDelegate<M> cb, bool allowConcurrentCallbacks = false) where M : RosMessage, new() =>
+            SubscribeAsync<M>(topic, queueSize, cb, allowConcurrentCallbacks).Result;
+
+        public Subscriber Subscribe<M>(string topic, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks) where M : RosMessage, new() =>
+            SubscribeAsync<M>(topic, queueSize, cb, allowConcurrentCallbacks).Result;
+
+        public Subscriber Subscribe(string topic, string messageType, int queueSize, CallbackDelegate<RosMessage> cb, bool allowConcurrentCallbacks = false) =>
+            SubscribeAsync(topic, messageType, queueSize, cb, allowConcurrentCallbacks).Result;
+
+        public Subscriber Subscribe(string topic, string messageType, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks = false) =>
+            SubscribeAsync(topic, messageType, queueSize, cb, allowConcurrentCallbacks).Result;
+
+        public Subscriber Subscribe(SubscribeOptions ops) =>
+            SubscribeAsync(ops).Result;
 
         /// <summary>
         ///     Creates a subscriber with the given topic name.
@@ -237,10 +270,10 @@ namespace Uml.Robotics.Ros
         /// <param name="cb">Callback to fire when a message is receieved</param>
         /// <param name="allowConcurrentCallbacks">Probably breaks things when true</param>
         /// <returns>A subscriber</returns>
-        public async Task<Subscriber> Subscribe<M>(string topic, int queueSize, CallbackDelegate<M> cb, bool allowConcurrentCallbacks = false)
+        public async Task<Subscriber> SubscribeAsync<M>(string topic, int queueSize, CallbackDelegate<M> cb, bool allowConcurrentCallbacks = false)
             where M : RosMessage, new()
         {
-            return await Subscribe<M>(topic, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks);
+            return await SubscribeAsync<M>(topic, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks);
         }
 
         /// <summary>
@@ -252,7 +285,7 @@ namespace Uml.Robotics.Ros
         /// <param name="cb">Function to fire when a message is recieved</param>
         /// <param name="allowConcurrentCallbacks">Probably breaks things when true</param>
         /// <returns>A subscriber</returns>
-        public async Task<Subscriber> Subscribe<M>(string topic, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks)
+        public async Task<Subscriber> SubscribeAsync<M>(string topic, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks)
             where M : RosMessage, new()
         {
             if (callbackQueue == null)
@@ -266,15 +299,15 @@ namespace Uml.Robotics.Ros
                 allow_concurrent_callbacks = allowConcurrentCallbacks
             };
             ops.callback_queue.AddCallback(cb);
-            return await Subscribe(ops);
+            return await SubscribeAsync(ops);
         }
 
-        public async Task<Subscriber> Subscribe(string topic, string messageType, int queueSize, CallbackDelegate<RosMessage> cb, bool allowConcurrentCallbacks = false)
+        public async Task<Subscriber> SubscribeAsync(string topic, string messageType, int queueSize, CallbackDelegate<RosMessage> cb, bool allowConcurrentCallbacks = false)
         {
-            return await Subscribe(topic, messageType, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks);
+            return await SubscribeAsync(topic, messageType, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks);
         }
 
-        public async Task<Subscriber> Subscribe(string topic, string messageType, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks = false)
+        public async Task<Subscriber> SubscribeAsync(string topic, string messageType, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks = false)
         {
             if (callbackQueue == null)
             {
@@ -288,7 +321,7 @@ namespace Uml.Robotics.Ros
                 allow_concurrent_callbacks = allowConcurrentCallbacks
             };
             ops.callback_queue.AddCallback(cb);
-            return await Subscribe(ops);
+            return await SubscribeAsync(ops);
         }
 
         /// <summary>
@@ -296,7 +329,7 @@ namespace Uml.Robotics.Ros
         /// </summary>
         /// <param name="ops">Subscriber options</param>
         /// <returns>A subscriber</returns>
-        public async Task<Subscriber> Subscribe(SubscribeOptions ops)
+        public async Task<Subscriber> SubscribeAsync(SubscribeOptions ops)
         {
             ops.topic = ResolveName(ops.topic);
             if (ops.callback_queue == null)
@@ -304,7 +337,7 @@ namespace Uml.Robotics.Ros
                 ops.callback_queue = Callback;
             }
 
-            await TopicManagerAsync.Instance.Subscribe(ops);
+            await TopicManager.Instance.Subscribe(ops);
 
             var sub = new Subscriber(ops.topic, this, ops.helper);
             lock (gate)
@@ -370,9 +403,9 @@ namespace Uml.Robotics.Ros
             where MReq : RosMessage, new()
             where MRes : RosMessage, new()
         {
-            ops.service = ResolveName(ops.service);
-            ops.md5sum = new MReq().MD5Sum();
-            return new ServiceClientAsync<MReq, MRes>(ops.service, ops.Persistent, ops.HeaderValues, ops.md5sum);
+            string service = ResolveName(ops.service);
+            string md5sum = new MReq().MD5Sum();
+            return new ServiceClientAsync<MReq, MRes>(service, ops.Persistent, ops.HeaderValues, md5sum);
         }
 
         public ServiceClientAsync<MSrv> ServiceClient<MSrv>(
@@ -386,9 +419,9 @@ namespace Uml.Robotics.Ros
         public ServiceClientAsync<MSrv> ServiceClient<MSrv>(ServiceClientOptions ops)
             where MSrv : RosService, new()
         {
-            ops.service = ResolveName(ops.service);
-            ops.md5sum = new MSrv().RequestMessage.MD5Sum();
-            return new ServiceClientAsync<MSrv>(ops.service, ops.Persistent, ops.HeaderValues, ops.md5sum);
+            string service = ResolveName(ops.service);
+            string md5sum = new MSrv().RequestMessage.MD5Sum();
+            return new ServiceClientAsync<MSrv>(service, ops.Persistent, ops.HeaderValues, md5sum);
         }
 
         private void Construct(string ns, bool validate_name)
@@ -487,7 +520,7 @@ namespace Uml.Robotics.Ros
 
         public void Dispose()
         {
-            Shutdown();
+            Shutdown().WhenCompleted().Wait();
         }
 
         private class NodeHandleBackingCollection

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Xamla.Robotics.Ros.Async;
 
@@ -10,72 +12,134 @@ namespace Uml.Robotics.Ros
         : SubscriberLink
         , IDisposable
     {
-        readonly ILogger logger = ApplicationLogging.CreateLogger<TransportSubscriberLink>();
-        ConnectionAsync connection;
-        bool headerWritten;
-        int maxQueue;
-        AsyncQueue<MessageAndSerializerFunc> outbox;
-        bool queueFull;
-        bool writingMessage;
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<TransportSubscriberLink>();
+        private readonly object gate = new object();
 
-        public TransportSubscriberLink(Publication parent)
+        private Connection connection;
+        private AsyncQueue<MessageAndSerializerFunc> outbox;
+
+        private CancellationTokenSource cts;
+        private CancellationToken cancel;
+        private Task sendLoop;
+
+        public TransportSubscriberLink()
         {
-            parent.MaxQueue
-            outbox = new AsyncQueue<MessageAndSerializerFunc>(queueSize);
-            writingMessage = false;
-            headerWritten = false;
-            queueFull = false;
+            this.cts = new CancellationTokenSource();
+            this.cancel = cts.Token;
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
-            Drop();
+            UnregisterSubscriberLink();
         }
 
-        public bool Initialize(ConnectionAsync connection)
+        private void UnregisterSubscriberLink()
         {
-            if (parent != null)
-                logger.LogDebug("Init transport subscriber link: " + parent.Name);
-            this.connection = connection;
-            connection.DroppedEvent += OnConnectionDropped;
-            return true;
+            lock (gate)
+            {
+                if (parent != null)
+                {
+                    parent.RemoveSubscriberLink(this);
+                }
+            }
+
+            outbox?.Dispose();
+            connection?.Dispose();
         }
 
-        public bool HandleHeader(Header header)
+        public void Initialize(Connection connection, Header header)
+        {
+            lock (gate)
+            {
+                if (sendLoop != null)
+                    throw new InvalidOperationException();
+
+                if (parent != null)
+                {
+                    logger.LogDebug("Init transport subscriber link: " + parent.Name);
+                }
+
+                this.connection = connection;
+                sendLoop = RunSendLoopAsync(header);
+            }
+        }
+
+        private async Task RunSendLoopAsync(Header header)
+        {
+            await Task.Yield();
+
+            try
+            {
+                // header handshake
+                try
+                {
+                    await HandleHeader(header);
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning(e, e.Message);
+                    await connection.SendHeaderError(e.Message, cancel);
+                    connection.Dispose();
+
+                    throw;
+                }
+
+                // read messages from queue and send them
+                while (await outbox.MoveNext(cancel))
+                {
+                    cancel.ThrowIfCancellationRequested();
+
+                    var current = outbox.Current;
+                    await WriteMessage(current);
+                }
+            }
+            finally
+            {
+                UnregisterSubscriberLink();
+            }
+        }
+
+        private async Task WriteMessage(MessageAndSerializerFunc message)
+        {
+            if (message.msg.Serialized == null)
+                message.msg.Serialized = message.serfunc();
+
+            int length = message.msg.Serialized.Length;
+            await connection.Write(BitConverter.GetBytes(length), 0, 4, cancel);
+            await connection.Write(message.msg.Serialized, 0, length, cancel);
+
+            Stats.MessagesSent++;
+            Stats.BytesSent += length + 4;
+            Stats.MessageDataSent += length;
+        }
+
+        private async Task HandleHeader(Header header)
         {
             if (!header.Values.ContainsKey("topic"))
             {
-                string msg = "Header from subscriber did not have the required element: topic";
-                logger.LogWarning(msg);
-                connection.sendHeaderError(ref msg);
-                return false;
+                throw new RosException("Header from subscriber did not have the required element: topic");
             }
-            string name = (string) header.Values["topic"];
-            string client_callerid = (string) header.Values["callerid"];
-            Publication pt = TopicManagerAsync.Instance.LookupPublication(name);
+
+            string name = header.Values["topic"];
+            string clientCallerId = header.Values["callerid"];
+
+            Publication pt = TopicManager.Instance.LookupPublication(name);
             if (pt == null)
             {
-                string msg = "received a connection for a nonexistent topic [" + name + "] from [" +
-                             connection.transport + "] [" + client_callerid + "]";
-                logger.LogWarning(msg);
-                connection.sendHeaderError(ref msg);
-                return false;
+                throw new RosException($"Received a connection for a nonexistent topic [{name}] from [{connection.Socket.RemoteEndPoint}] [{clientCallerId}]");
             }
-            string error_message = "";
-            if (!pt.ValidateHeader(header, ref error_message))
+
+            if (!pt.ValidateHeader(header, out string errorMessage))
             {
-                connection.sendHeaderError(ref error_message);
-                logger.LogError(error_message);
-                return false;
+                throw new RosException(errorMessage);
             }
-            destination_caller_id = client_callerid;
-            connection_id = ConnectionManager.Instance.GetNewConnectionId();
+
+            DestinationCallerId = clientCallerId;
+            connectionId = ConnectionManager.Instance.GetNewConnectionId();
             name = pt.Name;
             parent = pt;
-            lock (parent)
-            {
-                maxQueue = parent.MaxQueue;
-            }
+
+            this.outbox = new AsyncQueue<MessageAndSerializerFunc>(parent.MaxQueue);
 
             var m = new Dictionary<string, string>
             {
@@ -85,93 +149,23 @@ namespace Uml.Robotics.Ros
                 ["callerid"] = ThisNode.Name,
                 ["latching"] = Convert.ToString(pt.Latch)
             };
-            connection.writeHeader(m, OnHeaderWritten);
+
+            await connection.WriteHeader(m, cancel);
             pt.AddSubscriberLink(this);
             logger.LogDebug("Finalize transport subscriber link for " + name);
-            return true;
         }
 
-        internal override void EnqueueMessage(MessageAndSerializerFunc holder)
+        public override void EnqueueMessage(MessageAndSerializerFunc holder)
         {
-            lock (outbox)
+            if (!outbox.TryOnNext(holder))
             {
-                if (maxQueue > 0 && outbox.Count >= maxQueue)
-                {
-                    outbox.Dequeue();
-                    queueFull = true;
-                }
-                else
-                {
-                    queueFull = false;
-                }
-                outbox.Enqueue(holder);
-            }
-            StartMessageWrite(false);
-        }
-
-        public override void Drop()
-        {
-            if (connection.sendingHeaderError)
-                connection.DroppedEvent -= OnConnectionDropped;
-            else
-                connection.drop(Connection.DropReason.Destructing);
-        }
-
-        private void OnConnectionDropped(Connection conn, Connection.DropReason reason)
-        {
-            if (conn != connection || parent == null)
-                return;
-
-            lock (parent)
-            {
-                parent.RemoveSubscriberLink(this);
+                // TODO: handle queue full case
             }
         }
 
-        private bool OnHeaderWritten(Connection conn)
+        public override void GetPublishTypes(ref bool ser, ref bool nocopy, string type_info)
         {
-            headerWritten = true;
-            StartMessageWrite(true);
-            return true;
-        }
-
-        private bool OnMessageWritten(Connection conn)
-        {
-            writingMessage = false;
-            StartMessageWrite(true);
-            return true;
-        }
-
-        private void StartMessageWrite(bool immediateWrite)
-        {
-            MessageAndSerializerFunc holder = null;
-            if (writingMessage || !headerWritten)
-                return;
-
-            lock (outbox)
-            {
-                if (outbox.Count > 0)
-                {
-                    writingMessage = true;
-                    holder = outbox.Dequeue();
-                }
-                if (outbox.Count < maxQueue)
-                    queueFull = false;
-            }
-
-            if (holder != null)
-            {
-                if (holder.msg.Serialized == null)
-                    holder.msg.Serialized = holder.serfunc();
-                byte[] outbuf = new byte[holder.msg.Serialized.Length + 4];
-                Array.Copy(holder.msg.Serialized, 0, outbuf, 4, holder.msg.Serialized.Length);
-                Array.Copy(BitConverter.GetBytes(holder.msg.Serialized.Length), outbuf, 4);
-                Stats.MessagesSent++;
-                //Logger.LogDebug("Message backlog = " + (triedtosend - stats.messages_sent));
-                Stats.BytesSent += outbuf.Length;
-                Stats.MessageDataSent += outbuf.Length;
-                connection.write(outbuf, outbuf.Length, OnMessageWritten, immediateWrite);
-            }
+            throw new NotImplementedException();
         }
     }
 }

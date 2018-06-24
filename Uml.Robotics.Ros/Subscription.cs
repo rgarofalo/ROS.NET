@@ -5,12 +5,12 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-using Uml.Robotics.Ros;
 using Uml.Robotics.XmlRpc;
+using Xamla.Robotics.Ros.Async;
 
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
-    internal class SubscriptionAsync
+    internal class Subscription
         : IDisposable
     {
         private class CallbackInfo
@@ -28,48 +28,34 @@ namespace Xamla.Robotics.Ros.Async
             public TimeData ReceiptTime;
         }
 
-        private object gate = new object();
-        private ILogger logger = ApplicationLogging.CreateLogger<SubscriptionAsync>();
-
-        private bool disposed;
-
+        private readonly object gate = new object();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<Subscription>();
         private List<PublisherLink> publisherLinks = new List<PublisherLink>();
         private List<PendingConnection> pendingConnections = new List<PendingConnection>();
         private List<CallbackInfo> callbacks = new List<CallbackInfo>();
 
         private Dictionary<PublisherLink, LatchInfo> latchedMessages = new Dictionary<PublisherLink, LatchInfo>();
 
-        private readonly string name;
-        private string md5sum;
-        private readonly string dataType;
-
-        public SubscriptionAsync(string name, string md5sum, string dataType)
+        public Subscription(string name, string md5sum, string dataType)
         {
-            this.name = name;
-            this.md5sum = md5sum;
-            this.dataType = dataType;
+            this.Name = name;
+            this.Md5Sum = md5sum;
+            this.DataType = dataType;
         }
 
         public void Dispose()
         {
-            if (!disposed)
+            if (!IsDisposed)
             {
-                disposed = true;
+                IsDisposed = true;
                 DropAllConnections();
             }
         }
 
-        public string Name =>
-            name;
-
-        public string Md5Sum =>
-            md5sum;
-
-        public string DataType =>
-            dataType;
-
-        public bool IsDisposed =>
-            disposed;
+        public string Name { get; }
+        public string Md5Sum { get; private set; }
+        public string DataType { get; }
+        public bool IsDisposed { get; private set; }
 
         public int NumPublishers
         {
@@ -96,7 +82,7 @@ namespace Xamla.Robotics.Ros.Async
         public XmlRpcValue GetStats()
         {
             var stats = new XmlRpcValue();
-            stats.Set(0, name);
+            stats.Set(0, Name);
             var conn_data = new XmlRpcValue();
             conn_data.SetArray(0);
             lock (gate)
@@ -131,7 +117,7 @@ namespace Xamla.Robotics.Ros.Async
                     curr_info.Set(1, c.XmlRpcUri);
                     curr_info.Set(2, "i");
                     curr_info.Set(3, c.TransportType);
-                    curr_info.Set(4, name);
+                    curr_info.Set(4, Name);
                     //Logger.LogDebug("PUB curr_info DUMP:\n\t");
                     //curr_info.Dump();
                     info.Set(info.Count, curr_info);
@@ -195,19 +181,19 @@ namespace Xamla.Robotics.Ros.Async
             }
         }
 
-        public bool pubUpdate(IEnumerable<string> publisherUris)
+        public async Task<bool> PubUpdate(IEnumerable<string> publisherUris)
         {
-            using (logger.BeginScope(nameof(pubUpdate)))
+            using (logger.BeginScope(nameof(PubUpdate)))
             {
                 lock (gate)
                 {
-                    if (disposed)
+                    if (IsDisposed)
                         return false;
                 }
 
                 bool retval = true;
 
-                logger.LogDebug("Publisher update for [" + name + "]");
+                logger.LogDebug($"Publisher update for [{Name}]");
 
                 var additions = new List<string>();
                 List<PublisherLink> subtractions;
@@ -228,21 +214,23 @@ namespace Xamla.Robotics.Ros.Async
                             }
 
                             if (!found)
+                            {
                                 additions.Add(uri);
+                            }
                         }
                     }
                 }
+
                 foreach (PublisherLink link in subtractions)
                 {
                     if (link.XmlRpcUri != XmlRpcManager.Instance.Uri)
                     {
-                        logger.LogDebug("Disconnecting from publisher [" + link.CallerId + "] of topic [" + name +
-                                    "] at [" + link.XmlRpcUri + "]");
+                        logger.LogDebug($"Disconnecting from publisher [{link.CallerId}] of topic [{Name}] at [{link.XmlRpcUri}]");
                         link.Dispose();
                     }
                     else
                     {
-                        logger.LogWarning("Cannot disconnect from self for topic: " + name);
+                        logger.LogWarning("Cannot disconnect from self for topic: " + Name);
                     }
                 }
 
@@ -250,42 +238,33 @@ namespace Xamla.Robotics.Ros.Async
                 {
                     if (XmlRpcManager.Instance.Uri != i)
                     {
-                        retval &= NegotiateConnection(i);
-                        //Logger.LogDebug("NEGOTIATINGING");
+                        retval &= await NegotiateConnection(i);
                     }
-                    else
-                        logger.LogInformation("Skipping myself (" + name + ", " + XmlRpcManager.Instance.Uri + ")");
                 }
                 return retval;
             }
         }
 
-        public async Task<bool> NegotiateConnection(string xmlRpcUri)
+        private async Task<bool> NegotiateConnection(string xmlRpcUri)
         {
             int protos = 0;
-            XmlRpcValue tcpros_array = new XmlRpcValue(), protos_array = new XmlRpcValue(), Params = new XmlRpcValue();
-            tcpros_array.Set(0, "TCPROS");
-            protos_array.Set(protos++, tcpros_array);
+            XmlRpcValue tcprosArray = new XmlRpcValue(), protosArray = new XmlRpcValue(), Params = new XmlRpcValue();
+            tcprosArray.Set(0, "TCPROS");
+            protosArray.Set(protos++, tcprosArray);
             Params.Set(0, ThisNode.Name);
-            Params.Set(1, name);
-            Params.Set(2, protos_array);
+            Params.Set(1, Name);
+            Params.Set(2, protosArray);
+
             if (!Network.SplitUri(xmlRpcUri, out string peerHost, out int peerPort))
             {
-                logger.LogError("Bad XML-RPC URI: [" + xmlRpcUri + "]");
+                logger.LogError($"Bad XML-RPC URI: [{xmlRpcUri}]");
                 return false;
             }
 
             var client = new XmlRpcClient(peerHost, peerPort);
             var requestTopicTask = client.ExecuteAsync("requestTopic", Params);
-            if (requestTopicTask.IsFaulted)
-            {
-                logger.LogError("Failed to contact publisher [" + peerHost + ":" + peerPort + "] for topic [" + name + "]");
-                return false;
 
-            }
-
-            logger.LogDebug("Began asynchronous xmlrpc connection to http://" + peerHost + ":" + peerPort +
-                            "/ for topic [" + name + "]");
+            logger.LogDebug($"Began asynchronous XML RPC connection to http://{peerHost}:{peerPort}/ for topic [{Name}]");
 
             var conn = new PendingConnection(client, requestTopicTask, xmlRpcUri);
 
@@ -295,12 +274,13 @@ namespace Xamla.Robotics.Ros.Async
             }
 
             await requestTopicTask.WhenCompleted();
-            await PendingConnectionDone(conn, requestTopicTask);
 
-            return true;
+            PendingConnectionDone(conn, requestTopicTask);
+
+            return requestTopicTask.IsCompletedSuccessfully;
         }
 
-        private async Task PendingConnectionDone(PendingConnection conn, Task<XmlRpcCallResult> callTask)
+        private void PendingConnectionDone(PendingConnection conn, Task<XmlRpcCallResult> callTask)
         {
             lock (pendingConnections)
             {
@@ -311,13 +291,13 @@ namespace Xamla.Robotics.Ros.Async
             {
                 if (callTask.IsFaulted)
                 {
-                    logger.LogWarning($"Negotiating for {name} has failed (Error: {callTask.Exception.Message}).");
+                    logger.LogWarning($"Negotiating for {Name} has failed (Error: {callTask.Exception.Message}).");
                     return;
                 }
 
                 if (!callTask.Result.Success)
                 {
-                    logger.LogWarning($"Negotiating for {name} has failed. XML-RCP call failed.");
+                    logger.LogWarning($"Negotiating for {Name} has failed. XML-RCP call failed.");
                     return;
                 }
 
@@ -325,14 +305,14 @@ namespace Xamla.Robotics.Ros.Async
 
                 lock (gate)
                 {
-                    if (disposed)
+                    if (IsDisposed)
                         return;
                 }
 
                 var proto = new XmlRpcValue();
                 if (!XmlRpcManager.Instance.ValidateXmlRpcResponse("requestTopic", resultValue, proto))
                 {
-                    logger.LogWarning($"Negotiating for {name} has failed.");
+                    logger.LogWarning($"Negotiating for {Name} has failed.");
                     return;
                 }
 
@@ -342,7 +322,7 @@ namespace Xamla.Robotics.Ros.Async
                 if (proto.Count == 0)
                 {
                     logger.LogDebug(
-                        $"Could not agree on any common protocols with [{xmlrpcUri}] for topic [{name}]"
+                        $"Could not agree on any common protocols with [{xmlrpcUri}] for topic [{Name}]"
                     );
                     return;
                 }
@@ -367,7 +347,7 @@ namespace Xamla.Robotics.Ros.Async
 
                     string pubHost = proto[1].GetString();
                     int pubPort = proto[2].GetInt();
-                    logger.LogDebug($"Connecting via tcpros to topic [{name}] at host [{pubHost}:{pubPort}]");
+                    logger.LogDebug($"Connecting via tcpros to topic [{Name}] at host [{pubHost}:{pubPort}]");
 
                     try
                     {
@@ -378,11 +358,11 @@ namespace Xamla.Robotics.Ros.Async
                             AddPublisherLink(pubLink);
                         }
 
-                        logger.LogDebug($"Connected to publisher of topic [{name}] at  [{pubHost}:{pubPort}]");
+                        logger.LogDebug($"Connected to publisher of topic [{Name}] at  [{pubHost}:{pubPort}]");
                     }
                     catch
                     {
-                        logger.LogError($"Failed to connect to publisher of topic [{name}] at [{pubHost}:{pubPort}]");
+                        logger.LogError($"Failed to connect to publisher of topic [{Name}] at [{pubHost}:{pubPort}]");
                     }
                 }
                 else
@@ -396,8 +376,8 @@ namespace Xamla.Robotics.Ros.Async
         {
             lock (gate)
             {
-                if (md5sum == "*")
-                    md5sum = link.Md5Sum;
+                if (Md5Sum == "*")
+                    Md5Sum = link.Md5Sum;
             }
         }
 
@@ -465,10 +445,10 @@ namespace Xamla.Robotics.Ros.Async
         {
             lock (gate)
             {
-                if (this.md5sum == "*" && md5sum != "*")
-                    this.md5sum = md5sum;
+                if (this.Md5Sum == "*" && md5sum != "*")
+                    this.Md5Sum = md5sum;
 
-                if (md5sum != "*" && md5sum != this.md5sum)
+                if (md5sum != "*" && md5sum != this.Md5Sum)
                     return false;
 
                 var info = new CallbackInfo
@@ -529,10 +509,10 @@ namespace Xamla.Robotics.Ros.Async
         {
             lock (gate)
             {
-                if (disposed)
+                if (IsDisposed)
                     return;
 
-                logger.LogInformation("Creating intraprocess link for topic [{0}]", name);
+                logger.LogInformation("Creating intraprocess link for topic [{0}]", Name);
 
                 var pub_link = new LocalPublisherLink(this, XmlRpcManager.Instance.Uri);
                 var sub_link = new LocalSubscriberLink(pub);

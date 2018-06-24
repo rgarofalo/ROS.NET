@@ -4,32 +4,39 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Uml.Robotics.Ros;
 using Uml.Robotics.XmlRpc;
+using Xamla.Robotics.Ros.Async;
 
-
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
-    public class TopicManagerAsync
+    public class SubscribeFailedException : RosException
+    {
+        public SubscribeFailedException(SubscribeOptions ops, string reason)
+            : base($"Subscribing to topic [{ops.topic}] failed: {reason}")
+        {
+        }
+    }
+
+    public class TopicManager
     {
         public delegate byte[] SerializeFunc();
 
-        private static Lazy<TopicManagerAsync> instance = new Lazy<TopicManagerAsync>(LazyThreadSafetyMode.ExecutionAndPublication);
+        private static Lazy<TopicManager> instance = new Lazy<TopicManager>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        public static TopicManagerAsync Instance =>
+        public static TopicManager Instance =>
             instance.Value;
 
         internal static void Terminate() =>
-            Instance.Shutdown();
+            Instance.Shutdown().Wait();
 
         internal static void Reset() =>
-            instance = new Lazy<TopicManagerAsync>(LazyThreadSafetyMode.ExecutionAndPublication);
+            instance = new Lazy<TopicManager>(LazyThreadSafetyMode.ExecutionAndPublication);
 
         private readonly ILogger logger = ApplicationLogging.CreateLogger<TopicManager>();
         private object gate = new object();
         private bool shuttingDown;
         private List<Publication> advertisedTopics = new List<Publication>();
-        private List<SubscriptionAsync> subscriptions = new List<SubscriptionAsync>();
+        private List<Subscription> subscriptions = new List<Subscription>();
 
         /// <summary>
         /// Binds the XmlRpc requests to callback functions, signal to start
@@ -52,8 +59,11 @@ namespace Xamla.Robotics.Ros.Async
         /// <summary>
         /// Unbinds the XmlRpc requests to callback functions, signal to shutdown
         /// </summary>
-        public void Shutdown()
+        public async Task Shutdown()
         {
+            List<Publication> pubs;
+            List<Subscription> subs;
+
             lock (gate)
             {
                 if (shuttingDown)
@@ -68,27 +78,44 @@ namespace Xamla.Robotics.Ros.Async
                 XmlRpcManager.Instance.Unbind("getSubscriptions");
                 XmlRpcManager.Instance.Unbind("getPublications");
 
-                bool failedOnceToUnadvertise = false;
-                foreach (Publication p in advertisedTopics)
-                {
-                    if (!p.Dropped && !failedOnceToUnadvertise)
-                    {
-                        failedOnceToUnadvertise = !UnregisterPublisher(p.Name);
-                    }
-                    p.Drop();
-                }
+                pubs = advertisedTopics.ToList();
                 advertisedTopics.Clear();
-
-                bool failedOnceToUnsubscribe = false;
-                foreach (SubscriptionAsync s in subscriptions)
-                {
-                    if (!s.IsDisposed && !failedOnceToUnsubscribe)
-                    {
-                        failedOnceToUnsubscribe = !UnregisterSubscriber(s.Name);
-                    }
-                    s.Dispose();
-                }
+                subs = subscriptions.ToList();
                 subscriptions.Clear();
+            }
+
+            bool failedOnceToUnadvertise = false;
+            foreach (Publication p in pubs)
+            {
+                if (!p.Dropped && !failedOnceToUnadvertise)
+                {
+                    try
+                    {
+                        failedOnceToUnadvertise = !await UnregisterPublisher(p.Name);
+                    }
+                    catch
+                    {
+                        failedOnceToUnadvertise = true;
+                    }
+                }
+                p.Dispose();
+            }
+
+            bool failedOnceToUnsubscribe = false;
+            foreach (Subscription s in subs)
+            {
+                if (!s.IsDisposed && !failedOnceToUnsubscribe)
+                {
+                    try
+                    {
+                        failedOnceToUnsubscribe = !await UnregisterSubscriber(s.Name);
+                    }
+                    catch
+                    {
+                        failedOnceToUnsubscribe = true;
+                    }
+                }
+                s.Dispose();
             }
         }
 
@@ -171,6 +198,7 @@ namespace Xamla.Robotics.Ros.Async
             {
                 if (shuttingDown)
                     return false;
+
                 pub = LookupPublicationWithoutLock(ops.topic);
                 if (pub != null)
                 {
@@ -178,24 +206,36 @@ namespace Xamla.Robotics.Ros.Async
                     {
                         this.logger.LogError(
                             "Tried to advertise on topic [{0}] with md5sum [{1}] and datatype [{2}], but the topic is already advertised as md5sum [{3}] and datatype [{4}]",
-                            ops.topic, ops.md5Sum,
-                            ops.dataType, pub.Md5Sum, pub.DataType
+                            ops.topic,
+                            ops.md5Sum,
+                            ops.dataType,
+                            pub.Md5Sum,
+                            pub.DataType
                         );
                         return false;
                     }
                 }
                 else
-                    pub = new Publication(ops.topic, ops.dataType, ops.md5Sum, ops.messageDefinition, ops.queueSize,
-                        ops.Latch, ops.hasHeader);
+                {
+                    pub = new Publication(
+                        ops.topic,
+                        ops.dataType,
+                        ops.md5Sum,
+                        ops.messageDefinition,
+                        ops.queueSize,
+                        ops.Latch,
+                        ops.hasHeader
+                    );
+                }
                 pub.AddCallbacks(callbacks);
                 advertisedTopics.Add(pub);
             }
 
             bool found = false;
-            SubscriptionAsync sub = null;
+            Subscription sub = null;
             lock (gate)
             {
-                foreach (SubscriptionAsync s in subscriptions)
+                foreach (Subscription s in subscriptions)
                 {
                     if (s.Name == ops.topic && Md5SumsMatch(s.Md5Sum, ops.md5Sum) && !s.IsDisposed)
                     {
@@ -217,7 +257,7 @@ namespace Xamla.Robotics.Ros.Async
 
             if (!await Master.ExecuteAsync("registerPublisher", args, result, payload, true))
             {
-                this.logger.LogError("RPC \"registerService\" for service " + ops.topic + " failed.");
+                this.logger.LogError($"RPC \"registerPublisher\" for topic '{ops.topic}' failed.");
                 return false;
             }
 
@@ -235,15 +275,15 @@ namespace Xamla.Robotics.Ros.Async
             }
 
             if (string.IsNullOrEmpty(ops.md5sum))
-                throw subscribeFail(ops, "with an empty md5sum");
+                throw new SubscribeFailedException(ops, "with an empty md5sum");
             if (string.IsNullOrEmpty(ops.datatype))
-                throw subscribeFail(ops, "with an empty datatype");
+                throw new SubscribeFailedException(ops, "with an empty datatype");
             if (ops.helper == null)
-                throw subscribeFail(ops, "without a callback");
+                throw new SubscribeFailedException(ops, "without a callback");
 
             string md5sum = ops.md5sum;
             string datatype = ops.datatype;
-            var s = new SubscriptionAsync(ops.topic, md5sum, datatype);
+            var s = new Subscription(ops.topic, md5sum, datatype);
             s.AddCallback(ops.helper, ops.md5sum, ops.callback_queue, ops.queue_size, ops.allow_concurrent_callbacks, ops.topic);
             if (!await RegisterSubscriber(s, ops.datatype))
             {
@@ -259,20 +299,15 @@ namespace Xamla.Robotics.Ros.Async
             }
         }
 
-        private Exception subscribeFail(SubscribeOptions ops, string reason)
-        {
-            return new Exception("Subscribing to topic [" + ops.topic + "] " + reason);
-        }
-
         public async Task<bool> Unsubscribe(string topic, ISubscriptionCallbackHelper sbch)
         {
-            SubscriptionAsync sub = null;
+            Subscription sub = null;
             lock (gate)
             {
                 if (shuttingDown)
                     return false;
 
-                foreach (SubscriptionAsync s in subscriptions)
+                foreach (Subscription s in subscriptions)
                 {
                     if (s.Name == topic)
                     {
@@ -302,7 +337,7 @@ namespace Xamla.Robotics.Ros.Async
             return true;
         }
 
-        internal SubscriptionAsync RetSubscription(string topic)
+        internal Subscription RetSubscription(string topic)
         {
             lock (gate)
             {
@@ -322,6 +357,17 @@ namespace Xamla.Robotics.Ros.Async
                 {
                     return subscriptions.Count;
                 }
+            }
+        }
+
+        internal Subscription GetSubscription(string topic)
+        {
+            lock (gate)
+            {
+                if (shuttingDown)
+                    return null;
+
+                return subscriptions.FirstOrDefault(t => !t.IsDisposed && t.Name == topic);
             }
         }
 
@@ -363,9 +409,6 @@ namespace Xamla.Robotics.Ros.Async
                 }
 
                 p.Publish(new MessageAndSerializerFunc(msg, serfunc, serialize, nocopy));
-
-                if (serialize)
-                    PollManager.Instance.poll_set.ContinueThreads();
             }
             else
             {
@@ -392,12 +435,12 @@ namespace Xamla.Robotics.Ros.Async
         {
             bool found = false;
             bool foundTopic = false;
-            SubscriptionAsync sub = null;
+            Subscription sub = null;
 
             if (shuttingDown)
                 return false;
 
-            foreach (SubscriptionAsync s in subscriptions)
+            foreach (Subscription s in subscriptions)
             {
                 sub = s;
                 if (!sub.IsDisposed && sub.Name == options.topic)
@@ -475,7 +518,7 @@ namespace Xamla.Robotics.Ros.Async
             return advertisedTopics.Count(o => o.Name == topic) > 0;
         }
 
-        internal async Task<bool> RegisterSubscriber(SubscriptionAsync s, string datatype)
+        internal async Task<bool> RegisterSubscriber(Subscription s, string datatype)
         {
             string uri = XmlRpcManager.Instance.Uri;
 
@@ -518,7 +561,7 @@ namespace Xamla.Robotics.Ros.Async
                 }
             }
 
-            s.pubUpdate(pub_uris);
+            await s.PubUpdate(pub_uris);
             if (self_subscribed)
             {
                 s.AddLocalConnection(pub);
@@ -583,7 +626,7 @@ namespace Xamla.Robotics.Ros.Async
 
                 int sidx = 0;
                 subscribeStats.SetArray(subscriptions.Count);
-                foreach (SubscriptionAsync s in subscriptions)
+                foreach (Subscription s in subscriptions)
                 {
                     subscribeStats.Set(sidx++, s.GetStats());
                 }
@@ -610,7 +653,7 @@ namespace Xamla.Robotics.Ros.Async
                     t.GetInfo(info);
                 }
 
-                foreach (SubscriptionAsync t in subscriptions)
+                foreach (Subscription t in subscriptions)
                 {
                     t.GetInfo(info);
                 }
@@ -624,7 +667,7 @@ namespace Xamla.Robotics.Ros.Async
             lock (gate)
             {
                 int i = 0;
-                foreach (SubscriptionAsync t in subscriptions)
+                foreach (Subscription t in subscriptions)
                 {
                     subs.Set(i++, new XmlRpcValue(t.Name, t.DataType));
                 }
@@ -647,19 +690,19 @@ namespace Xamla.Robotics.Ros.Async
             }
         }
 
-        public bool PubUpdate(string topic, List<string> pubs)
+        public async Task<bool> PubUpdate(string topic, List<string> pubs)
         {
             using (this.logger.BeginScope(nameof(PubUpdate)))
             {
                 this.logger.LogDebug("TopicManager is updating publishers for " + topic);
 
-                SubscriptionAsync sub = null;
+                Subscription sub = null;
                 lock (gate)
                 {
                     if (shuttingDown)
                         return false;
 
-                    foreach (SubscriptionAsync s in subscriptions)
+                    foreach (Subscription s in subscriptions)
                     {
                         if (s.Name != topic || s.IsDisposed)
                             continue;
@@ -669,7 +712,9 @@ namespace Xamla.Robotics.Ros.Async
                 }
 
                 if (sub != null)
-                    return sub.pubUpdate(pubs);
+                {
+                    return await sub.PubUpdate(pubs);
+                }
 
                 this.logger.LogInformation($"Request for updating publishers of topic '{topic}', which has no subscribers.");
                 return false;
@@ -681,7 +726,9 @@ namespace Xamla.Robotics.Ros.Async
             var pubs = new List<string>();
             for (int idx = 0; idx < parm[2].Count; idx++)
                 pubs.Add(parm[2][idx].GetString());
-            if (PubUpdate(parm[1].GetString(), pubs))
+            var pubUpdateTask = PubUpdate(parm[1].GetString(), pubs);
+            pubUpdateTask.WhenCompleted().WhenCompleted().Wait();
+            if (pubUpdateTask.IsCompletedSuccessfully && pubUpdateTask.Result)
                 XmlRpcManager.ResponseInt(1, "", 0)(result);
             else
             {
@@ -741,6 +788,7 @@ namespace Xamla.Robotics.Ros.Async
         public async Task<bool> Unadvertise(string topic, SubscriberCallbacks callbacks)
         {
             Publication pub = null;
+
             lock (gate)
             {
                 foreach (Publication p in advertisedTopics)
@@ -757,15 +805,17 @@ namespace Xamla.Robotics.Ros.Async
                 return false;
 
             pub.RemoveCallbacks(callbacks);
+
             lock (gate)
             {
-                if (pub.NumCallbacks == 0)
-                {
-                    await UnregisterPublisher(pub.Name);
-                    pub.Drop();
-                    advertisedTopics.Remove(pub);
-                }
+                if (pub.NumCallbacks > 0)
+                    return true;
+                pub.Dispose();
+                advertisedTopics.Remove(pub);
             }
+
+            await UnregisterPublisher(pub.Name);
+
             return true;
         }
     }

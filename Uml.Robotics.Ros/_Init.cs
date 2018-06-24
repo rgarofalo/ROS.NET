@@ -425,7 +425,7 @@ namespace Uml.Robotics.Ros
 
                 //PollManager.Instance.AddPollThreadListener(CheckForShutdown);         // ## remove
                 XmlRpcManager.Instance.Bind("shutdown", ShutdownCallback);
-                TopicManagerAsync.Instance.Start();
+                TopicManager.Instance.Start();
                 ServiceManager.Instance.Start();
                 ConnectionManager.Instance.Start();
                 //PollManager.Instance.Start();     // ## remove
@@ -487,14 +487,14 @@ namespace Uml.Robotics.Ros
 
                 SimTime.Terminate();
                 RosOutAppender.Terminate();
-                GlobalNodeHandle.Shutdown();
+                GlobalNodeHandle.Shutdown().Wait();
                 GlobalCallbackQueue.Disable();
                 GlobalCallbackQueue.Clear();
 
                 XmlRpcManager.Instance.Unbind("shutdown");
                 Param.Terminate();
 
-                TopicManagerAsync.Terminate();
+                TopicManager.Terminate();
                 ServiceManager.Terminate();
                 XmlRpcManager.Terminate();
                 ConnectionManager.Terminate();

@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using Uml.Robotics.Ros;
 
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
     public class ServiceClientAsync<MReq, MRes>
-        : ServiceClientAsyncBase
+        : ServiceClientBase
         where MReq : RosMessage, new() where MRes : RosMessage, new()
     {
         internal ServiceClientAsync(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
@@ -50,7 +49,7 @@ namespace Xamla.Robotics.Ros.Async
     }
 
     public class ServiceClientAsync<MSrv>
-        : ServiceClientAsyncBase
+        : ServiceClientBase
         where MSrv : RosService, new()
     {
         internal ServiceClientAsync(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)

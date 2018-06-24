@@ -5,14 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 using Uml.Robotics.Ros;
 
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
     public interface IServiceServerLinkAsync
         : IDisposable
     {
         bool IsValid { get; }
 
-        System.Net.Sockets.Socket Socket { get;  }
+        Socket Socket { get;  }
         NetworkStream Stream { get; }
 
         Task<bool> Call(RosService srv);

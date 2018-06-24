@@ -38,6 +38,7 @@ namespace Uml.Robotics.Ros
                     {
                         Thread.Sleep(100);
                     }
+
                     if (!ROS.shutting_down)
                     {
                         nodeHandle = new NodeHandle();
@@ -58,8 +59,8 @@ namespace Uml.Robotics.Ros
 
         public void Shutdown()
         {
-            simTimeSubscriber?.shutdown();
-            nodeHandle?.Shutdown();
+            simTimeSubscriber?.Dispose();
+            nodeHandle?.Dispose();
         }
 
         private void SimTimeCallback(Clock time)

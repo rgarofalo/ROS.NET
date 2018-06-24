@@ -1,5 +1,4 @@
 ﻿using System;
-using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -24,18 +23,18 @@ namespace Uml.Robotics.Ros
 
         private Header header;
 
-        public uint ConnectionId;
+        public int ConnectionId;
         public bool Latched;
         public string Md5Sum = "";
 
-        public PublisherLink(SubscriptionAsync parent, string xmlrpcUri)
+        public PublisherLink(Subscription parent, string xmlrpcUri)
         {
             this.Parent = parent;
             this.XmlRpcUri = xmlrpcUri;
         }
 
         public string CallerId { get; private set; }
-        public SubscriptionAsync Parent { get; }
+        public Subscription Parent { get; }
         public string XmlRpcUri { get; }
         public PublisherStats Stats { get; } = new PublisherStats();
 

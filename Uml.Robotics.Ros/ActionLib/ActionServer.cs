@@ -78,11 +78,11 @@ namespace Uml.Robotics.Ros.ActionLib
                 ROS.GlobalCallbackQueue.RemoveById(spinCallbackId);
                 spinCallbackId = 0;
             }
-            resultPublisher.shutdown();
-            feedbackPublisher.shutdown();
-            goalStatusPublisher.shutdown();
-            goalSubscriber.shutdown();
-            cancelSubscriber.shutdown();
+            resultPublisher.Dispose();
+            feedbackPublisher.Dispose();
+            goalStatusPublisher.Dispose();
+            goalSubscriber.Dispose();
+            cancelSubscriber.Dispose();
         }
 
 

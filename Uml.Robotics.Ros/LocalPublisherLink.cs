@@ -7,22 +7,20 @@ namespace Uml.Robotics.Ros
     internal class LocalPublisherLink : PublisherLink
     {
         private object gate = new object();
-        private bool dropped;
+        private bool disposed;
         private LocalSubscriberLink publisher;
 
-        public LocalPublisherLink(SubscriptionAsync parent, string xmlrpc_uri)
+        public LocalPublisherLink(Subscription parent, string xmlrpc_uri)
             : base(parent, xmlrpc_uri)
         {
         }
 
-        public override string TransportType
-        {
-            get { return "INTRAPROCESS"; }
-        }
+        public override string TransportType =>
+            "INTRAPROCESS";
 
-        public void SetPublisher(LocalSubscriberLink pub_link)
+        public void SetPublisher(LocalSubscriberLink link)
         {
-            lock (Parent)
+            lock (gate)
             {
                 var headerFields = new Dictionary<string, string>
                 {
@@ -40,39 +38,27 @@ namespace Uml.Robotics.Ros
         {
             lock (gate)
             {
-                if (dropped)
+                if (disposed)
                     return;
-                dropped = true;
+                disposed = true;
             }
 
-            if (publisher != null)
-            {
-                publisher.Drop();
-            }
-
-            lock (Parent)
-            {
-                Parent.RemovePublisherLink(this);
-            }
+            publisher?.Dispose();
+            Parent.RemovePublisherLink(this);
         }
 
         public void HandleMessage<T>(T m, bool ser, bool nocopy) where T : RosMessage, new()
         {
-            Stats.MessagesReceived++;
-            if (m.Serialized == null)
+            lock (gate)
             {
-                // ignore stats to avoid an unnecessary allocation
-            }
-            else
-            {
-                Stats.BytesReceived += m.Serialized.Length;
-            }
-            if (Parent != null)
-            {
-                lock (Parent)
+                Stats.MessagesReceived++;
+
+                if (m.Serialized != null)
                 {
-                    Stats.Drops += Parent.HandleMessage(m, ser, nocopy, m.connection_header, this);
+                    Stats.BytesReceived += m.Serialized.Length;
                 }
+
+                Stats.Drops += Parent.HandleMessage(m, ser, nocopy, m.connection_header, this);
             }
         }
 
@@ -80,19 +66,17 @@ namespace Uml.Robotics.Ros
         {
             lock (gate)
             {
-                if (dropped)
+                if (disposed)
                 {
                     ser = false;
                     nocopy = false;
                     return;
                 }
             }
+
             if (Parent != null)
             {
-                lock (Parent)
-                {
-                    Parent.GetPublishTypes(ref ser, ref nocopy, messageType);
-                }
+                Parent.GetPublishTypes(ref ser, ref nocopy, messageType);
             }
             else
             {

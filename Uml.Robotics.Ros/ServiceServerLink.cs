@@ -6,10 +6,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Uml.Robotics.Ros;
+using Xamla.Robotics.Ros.Async;
 
-namespace Xamla.Robotics.Ros.Async
+namespace Uml.Robotics.Ros
 {
-    internal class ServiceServerLinkAsync
+    internal class ServiceServerLink
         : IServiceServerLinkAsync
     {
         const int MAX_CALL_QUEUE_LENGTH = 8096;
@@ -23,9 +24,9 @@ namespace Xamla.Robotics.Ros.Async
             public string ErrorMessage { get; set; }
         }
 
-        private readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceServerLinkAsync>();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceServerLink>();
 
-        private ConnectionAsync connection;
+        private Connection connection;
         private AsyncQueue<CallInfo> callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
 
         private readonly string name;
@@ -37,8 +38,8 @@ namespace Xamla.Robotics.Ros.Async
         private IDictionary<string, string> headerValues;
         Task connectionTask;
 
-        public ServiceServerLinkAsync(
-            ConnectionAsync connection,
+        public ServiceServerLink(
+            Connection connection,
             string name,
             bool persistent,
             string requestMd5Sum,
@@ -57,7 +58,7 @@ namespace Xamla.Robotics.Ros.Async
             this.cancel = cancellationTokenSource.Token;
         }
 
-        public System.Net.Sockets.Socket Socket =>
+        public Socket Socket =>
             connection?.Socket;
 
         public NetworkStream Stream =>
@@ -162,9 +163,9 @@ namespace Xamla.Robotics.Ros.Async
             bool success = receiveBuffer[0] != 0;
             int responseLength = BitConverter.ToInt32(receiveBuffer, 1);
 
-            if (responseLength < 0 || responseLength > ConnectionAsync.MESSAGE_SIZE_LIMIT)
+            if (responseLength < 0 || responseLength > Connection.MESSAGE_SIZE_LIMIT)
             {
-                var errorMessage = $"Message length exceeds limit of {ConnectionAsync.MESSAGE_SIZE_LIMIT}. Dropping connection.";
+                var errorMessage = $"Message length exceeds limit of {Connection.MESSAGE_SIZE_LIMIT}. Dropping connection.";
                 ROS.Error()(errorMessage);
                 throw new ConnectionError(errorMessage);
             }
