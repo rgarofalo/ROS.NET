@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using Uml.Robotics.Ros;
 
@@ -14,10 +13,12 @@ namespace Xamla.Robotics.Ros.Async
 
         protected object gate = new object();
         protected ILogger logger = ApplicationLogging.CreateLogger<ServiceClientAsyncBase>();
+
         protected string serviceName;
         protected bool persistent;
-        protected IDictionary<string, string> headerValues;
         protected string md5sum;
+        protected IDictionary<string, string> headerValues;
+
         protected IServiceServerLinkAsync serverLink;
         protected bool busy;
 
@@ -77,14 +78,14 @@ namespace Xamla.Robotics.Ros.Async
             }
         }
 
-        protected async Task<bool> PreCall(string service_md5sum)
+        protected async Task<bool> PreCall(string serviceMd5Sum)
         {
             if (disposed)
                 throw new ObjectDisposedException("ServiceClient instance was disposed");
 
-            if (service_md5sum != md5sum)
+            if (serviceMd5Sum != md5sum)
             {
-                throw new Exception($"Call to service '{serviceName}' with md5sum '{service_md5sum}' does not match the md5sum that was specified when the handle was created ('{md5sum}').");
+                throw new Exception($"Call to service '{serviceName}' with md5sum '{serviceMd5Sum}' does not match the md5sum that was specified when the handle was created ('{md5sum}').");
             }
 
             if (serverLink != null && !serverLink.IsValid)

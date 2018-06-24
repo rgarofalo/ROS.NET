@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
-    public class TcpTransport
+    /*public class TcpTransport
     {
         public delegate void AcceptCallback(TcpTransport trans);
         public delegate void DisconnectFunc(TcpTransport trans);
@@ -261,7 +261,7 @@ namespace Uml.Robotics.Ros
             }, null);
 
             bool completed = false;
-            while (ROS.ok && !ROS.shutting_down)
+            while (ROS.OK && !ROS.shutting_down)
             {
                 completed = asyncres.AsyncWaitHandle.WaitOne(10);
                 if (completed)
@@ -286,7 +286,7 @@ namespace Uml.Robotics.Ros
                 Logger.LogDebug("TcpTransport connection established.");
             }
 
-            return ROS.ok && initializeSocket();
+            return ROS.OK && initializeSocket();
         }
 
         public bool listen(int port, int backlog, AcceptCallback accept_cb)
@@ -544,5 +544,5 @@ namespace Uml.Robotics.Ros
                 disconnect_cb(this);
             }
         }
-    }
+    }*/
 }

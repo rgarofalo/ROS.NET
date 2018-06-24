@@ -13,21 +13,21 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     Holds on to known timer instances
         /// </summary>
-        private HashSet<WrappedTimer> heardof = new HashSet<WrappedTimer>();
+        private HashSet<WrappedTimer> timerList = new HashSet<WrappedTimer>();
 
         /// <summary>
         ///     clean up shop
         /// </summary>
         public void Dispose()
         {
-            lock (heardof)
+            lock (timerList)
             {
                 //be extra super sure they're all dead
-                foreach (WrappedTimer t in heardof)
+                foreach (WrappedTimer t in timerList)
                 {
                     t.Dispose();
                 }
-                heardof.Clear();
+                timerList.Clear();
             }
         }
 
@@ -77,11 +77,11 @@ namespace Uml.Robotics.Ros
         /// <param name="t">the wrapped timer</param>
         public void MakeTimer(WrappedTimer t)
         {
-            lock (heardof)
+            lock (timerList)
             {
-                if (heardof.Contains(t))
+                if (timerList.Contains(t))
                     throw new Exception("The same timer cannot be tracked twice");
-                heardof.Add(t);
+                timerList.Add(t);
             }
         }
 
@@ -91,10 +91,10 @@ namespace Uml.Robotics.Ros
         /// <param name="t">The timer to forget and kill</param>
         public void RemoveTimer(ref WrappedTimer t)
         {
-            lock (heardof)
+            lock (timerList)
             {
-                if (heardof.Contains(t))
-                    heardof.Remove(t);
+                if (timerList.Contains(t))
+                    timerList.Remove(t);
             }
             t.Dispose();
             t = null;
@@ -106,18 +106,15 @@ namespace Uml.Robotics.Ros
     /// </summary>
     public class WrappedTimer : IDisposable
     {
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<WrappedTimer>();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<WrappedTimer>();
+
         //variable backing for properties
-        private int _delay = Timeout.Infinite;
-        private int _period = Timeout.Infinite;
-        private bool _running;
+        private int delay = Timeout.Infinite;
+        private int period = Timeout.Infinite;
+        private bool running;
 
         private TimerCallback cb;
-
-        /// <summary>
-        ///     Tastes like it smells
-        /// </summary>
-        internal Timer timer;
+        private Timer timer;
 
         /// <summary>
         ///     Instantiate the wrapper
@@ -127,64 +124,64 @@ namespace Uml.Robotics.Ros
         /// <param name="p">Its period</param>
         public WrappedTimer(TimerCallback cb, int d, int p)
         {
-            //add a callback between the caller and the timer, so non-periodic timers state becomes false right before the one time their callback happens
-            //(If a timer's period is Timeout.Infinite, it will fire once delay ms after Start is called. If start is recalled before then, nothing changes.
-            //      To reset the time to the next pending callback before the callback happens, use Restart)
+            // add a callback between the caller and the timer, so non-periodic timers state becomes false right before the one time their callback happens
+            // (If a timer's period is Timeout.Infinite, it will fire once delay ms after Start is called. If start is recalled before then, nothing changes.
+            // To reset the time to the next pending callback before the callback happens, use Restart)
             this.cb = o =>
-                          {
-                              if (_period == Timeout.Infinite)
-                                  _running = false;
-                              cb(o);
-                          };
+            {
+                if (period == Timeout.Infinite)
+                    running = false;
+                cb(o);
+            };
             timer = new Timer(this.cb, null, Timeout.Infinite, Timeout.Infinite);
-            _delay = d;
-            _period = p;
+            delay = d;
+            period = p;
         }
 
         /// <summary>
         ///     This timer's delay
         /// </summary>
-        public int delay
+        public int Delay
         {
-            get { return _delay; }
+            get { return delay; }
             set
             {
                 if (timer == null)
-                    throw new NullReferenceException("Timer instance has already been disposed");
-                if (_delay != value && running)
-                    timer.Change(value, _period);
-                _delay = value;
+                    throw new ObjectDisposedException("Timer instance has already been disposed");
+                if (delay != value && Running)
+                    timer.Change(value, period);
+                delay = value;
             }
         }
 
         /// <summary>
         ///     This timer's period
         /// </summary>
-        public int period
+        public int Period
         {
-            get { return _period; }
+            get { return period; }
             set
             {
                 if (timer == null)
-                    throw new NullReferenceException("Timer instance has already been disposed");
-                if (_period != value && running)
-                    timer.Change(_delay, value);
-                _period = value;
+                    throw new ObjectDisposedException("Timer instance has already been disposed");
+                if (period != value && Running)
+                    timer.Change(delay, value);
+                period = value;
             }
         }
 
         /// <summary>
         ///     Is it running
         /// </summary>
-        public bool running
+        public bool Running
         {
-            get { return _running; }
+            get { return running; }
             set
             {
                 if (timer == null)
-                    throw new NullReferenceException("Timer instance has already been disposed");
-                if (value && !_running) Start();
-                if (!value && _running) Stop();
+                    throw new ObjectDisposedException("Timer instance has already been disposed");
+                if (value && !running) Start();
+                if (!value && running) Stop();
             }
         }
 
@@ -200,24 +197,23 @@ namespace Uml.Robotics.Ros
             timer = null;
         }
 
-
         /// <summary>
         ///     Starts the timer with this wrapper's set delay and period.
         /// </summary>
         public void Start()
         {
             if (timer == null)
-                throw new NullReferenceException("Timer instance has already been disposed");
-            if (running)
+                throw new ObjectDisposedException("Timer instance has already been disposed");
+            if (Running)
                 return;
             try
             {
-                timer.Change(_delay, _period);
-                _running = true;
+                timer.Change(delay, period);
+                running = true;
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error starting timer: " + ex);
+                logger.LogError("Error starting timer: " + ex);
             }
         }
 
@@ -229,17 +225,17 @@ namespace Uml.Robotics.Ros
         public void Start(int d, int p)
         {
             if (timer == null)
-                throw new NullReferenceException("Timer instance has already been disposed");
-            _delay = d;
-            _period = p;
+                throw new ObjectDisposedException("Timer instance has already been disposed");
+            delay = d;
+            period = p;
             try
             {
-                timer.Change(_delay, _period);
-                _running = d != Timeout.Infinite && p != Timeout.Infinite;
+                timer.Change(delay, period);
+                running = d != Timeout.Infinite && p != Timeout.Infinite;
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error starting timer: " + ex);
+                logger.LogError("Error starting timer: " + ex);
             }
         }
 
@@ -258,17 +254,17 @@ namespace Uml.Robotics.Ros
         public void Stop()
         {
             if (timer == null)
-                throw new NullReferenceException("Timer instance has already been disposed");
-            if (!running)
+                throw new ObjectDisposedException("Timer instance has already been disposed");
+            if (!Running)
                 return;
             try
             {
                 timer.Change(Timeout.Infinite, Timeout.Infinite);
-                _running = false;
+                running = false;
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error starting timer: " + ex);
+                logger.LogError("Error starting timer: " + ex);
             }
         }
     }

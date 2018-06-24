@@ -1,4 +1,5 @@
 ﻿using Messages;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -6,10 +7,10 @@ namespace Uml.Robotics.Ros
     {
         internal RosMessage msg;
         internal bool nocopy;
-        internal TopicManager.SerializeFunc serfunc;
+        internal TopicManagerAsync.SerializeFunc serfunc;
         internal bool serialize;
 
-        internal MessageAndSerializerFunc(RosMessage msg, TopicManager.SerializeFunc serfunc, bool ser, bool nc)
+        internal MessageAndSerializerFunc(RosMessage msg, TopicManagerAsync.SerializeFunc serfunc, bool ser, bool nc)
         {
             this.msg = msg;
             this.serfunc = serfunc;

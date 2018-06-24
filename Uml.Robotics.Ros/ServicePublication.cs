@@ -83,16 +83,16 @@ namespace Uml.Robotics.Ros
 
                 ServiceCallbackHelperParams<MReq, MRes> parms = new ServiceCallbackHelperParams<MReq, MRes>
                 {
-                    request = new MReq(),
-                    response = new MRes(),
-                    connection_header = link.connection.header.Values
+                    Request = new MReq(),
+                    Response = new MRes(),
+                    ConnectionHeader = link.connection.header.Values
                 };
-                parms.request.Deserialize(buffer);
+                parms.Request.Deserialize(buffer);
 
                 try
                 {
-                    bool ok = isp.helper.call(parms);
-                    link.processResponse(parms.response, ok);
+                    bool ok = isp.helper.Call(parms);
+                    link.processResponse(parms.Response, ok);
                 }
                 catch (Exception e)
                 {

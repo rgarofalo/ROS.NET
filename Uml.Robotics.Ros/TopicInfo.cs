@@ -8,8 +8,8 @@
             this.DataType = dataType;
         }
 
-        public string DataType { get; private set; }
         public string Name { get; private set; }
+        public string DataType { get; private set; }
 
         public override string ToString()
         {

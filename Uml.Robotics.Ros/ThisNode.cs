@@ -7,16 +7,16 @@ namespace Uml.Robotics.Ros
 {
     public static class ThisNode
     {
-        private static ILogger Logger { get; } = ApplicationLogging.CreateLogger(nameof(ThisNode));
-        public static string Name = "empty";
-        public static string Namespace = "";
+        private static readonly ILogger logger = ApplicationLogging.CreateLogger(nameof(ThisNode));
+        public static string Name { get; private set; } = "empty";
+        public static string Namespace { get; private set; } = "";
 
         public static void Init(string n, IDictionary<string, string> remappings)
         {
-            Init(n, remappings, 0);
+            Init(n, remappings, InitOptions.None);
         }
 
-        public static void Init(string name, IDictionary<string, string> remappings, int options)
+        public static void Init(string name, IDictionary<string, string> remappings, InitOptions options)
         {
             Name = name;
 
@@ -26,35 +26,42 @@ namespace Uml.Robotics.Ros
                 Name = remappings["__name"];
                 disableAnonymous = true;
             }
+
             if (remappings.ContainsKey("__ns"))
             {
                 Namespace = remappings["__ns"];
             }
+
             if (string.IsNullOrEmpty(Namespace))
             {
                 Namespace = "/";
             }
 
-            long walltime = DateTime.UtcNow.Subtract(Process.GetCurrentProcess().StartTime).Ticks;
+            long walltime = DateTime.UtcNow.Ticks;
             Names.Init(remappings);
+
             if (Name.Contains("/"))
                 throw new ArgumentException("Slashes '/' are not allowed in names", nameof(name));
             if (Name.Contains("~"))
                 throw new ArgumentException("Tildes '~' are not allowed in names", nameof(name));
+
             try
             {
                 Name = Names.Resolve(Namespace, Name);
             }
             catch (Exception e)
             {
-                Logger.LogError(e.ToString());
+                logger.LogError(e, e.Message);
             }
-            if ((options & (int) InitOption.AnonymousName) == (int) InitOption.AnonymousName && !disableAnonymous)
+
+            if (options.HasFlag(InitOptions.AnonymousName) && !disableAnonymous)
             {
-                int lbefore = Name.Length;
+                int oldLength = Name.Length;
                 Name += "_" + walltime;
-                if (Name.Length - lbefore > 201)
-                    Name = Name.Remove(lbefore + 201);
+                if (Name.Length > 201)
+                {
+                    Name = Name.Remove(201);
+                }
             }
         }
     }

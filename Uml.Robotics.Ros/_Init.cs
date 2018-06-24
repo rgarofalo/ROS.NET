@@ -12,6 +12,7 @@ using Uml.Robotics.XmlRpc;
 using std_msgs = Messages.std_msgs;
 using System.IO;
 using System.Threading.Tasks;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -20,7 +21,7 @@ namespace Uml.Robotics.Ros
     /// </summary>
     public static class ROS
     {
-        private static ILogger Logger { get; set; } = ApplicationLogging.CreateLogger(nameof(ROS));
+        private static ILogger logger = ApplicationLogging.CreateLogger(nameof(ROS));
 
         private static ICallbackQueue globalCallbackQueue;
         private static object startMutex = new object();
@@ -34,12 +35,10 @@ namespace Uml.Robotics.Ros
         private static volatile bool _ok;
         internal static bool shuttingDown;
         private static volatile bool shutdownRequested;
-        private static int initOptions;
+        private static InitOptions initOptions;
 
-        public static ICallbackQueue GlobalCallbackQueue
-        {
-            get => globalCallbackQueue;
-        }
+        public static ICallbackQueue GlobalCallbackQueue =>
+            globalCallbackQueue;
 
         /// <summary>
         ///     Means of setting ROS_MASTER_URI programatically before Init is called
@@ -78,7 +77,7 @@ namespace Uml.Robotics.Ros
         private const string ROSOUT_ERROR_PREFIX = "[Error]";
         private const string ROSOUT_FATAL_PREFIX = "[FATAL]";
 
-        private static Dictionary<RosOutAppender.ROSOUT_LEVEL, string> ROSOUT_PREFIX =
+        private static readonly Dictionary<RosOutAppender.ROSOUT_LEVEL, string> ROSOUT_PREFIX =
             new Dictionary<RosOutAppender.ROSOUT_LEVEL, string> {
                 { RosOutAppender.ROSOUT_LEVEL.DEBUG, ROSOUT_DEBUG_PREFIX },
                 { RosOutAppender.ROSOUT_LEVEL.INFO, ROSOUT_INFO_PREFIX },
@@ -95,7 +94,7 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     True if ROS is ok, false if not
         /// </summary>
-        public static bool ok
+        public static bool OK
         {
             get { return _ok; }
         }
@@ -209,7 +208,7 @@ namespace Uml.Robotics.Ros
 
         private static void _rosout(object format, object[] args, RosOutAppender.ROSOUT_LEVEL level, CallerInfo callerInfo)
         {
-            using (Logger.BeginScope(nameof(_rosout)))
+            using (logger.BeginScope(nameof(_rosout)))
             {
                 if (format == null)
                     throw new ArgumentNullException(nameof(format));
@@ -224,7 +223,7 @@ namespace Uml.Robotics.Ros
     #endif
                 }
                 if (printit)
-                    Logger.LogDebug(ROSOUT_FMAT, ROSOUT_PREFIX[level], text);
+                    logger.LogDebug(ROSOUT_FMAT, ROSOUT_PREFIX[level], text);
                 RosOutAppender.Instance.Append(text, level, callerInfo);
             }
         }
@@ -238,10 +237,10 @@ namespace Uml.Robotics.Ros
             ApplicationLogging.LoggerFactory = factory;
 
             // recreate logger to make sure the new log settings form the factory are used
-            Logger = ApplicationLogging.CreateLogger(nameof(ROS));
+            logger = ApplicationLogging.CreateLogger(nameof(ROS));
             if (initialized)
             {
-                Logger.LogWarning("Logging should be configured before initializing the ROS system.");
+                logger.LogWarning("Logging should be configured before initializing the ROS system.");
             }
         }
 
@@ -261,7 +260,7 @@ namespace Uml.Robotics.Ros
         /// <param name="args"> argv - parsed for remapping args (AND PARAMS??) </param>
         /// <param name="name"> the node's name </param>
         /// <param name="options"> options? </param>
-        public static void Init(string[] args, string name, int options)
+        public static void Init(string[] args, string name, InitOptions options)
         {
             // ROS_MASTER_URI/ROS_HOSTNAME definition precedence:
             // 1. explicitely set by program
@@ -280,7 +279,7 @@ namespace Uml.Robotics.Ros
         /// <param name="remappingArgs"> dictionary of remapping args </param>
         /// <param name="name"> node name </param>
         /// <param name="options"> options </param>
-        public static void Init(IDictionary<string, string> remappingArgs, string name, int options = 0)
+        public static void Init(IDictionary<string, string> remappingArgs, string name, InitOptions options = 0)
         {
             lock (typeof(ROS))
             {
@@ -290,14 +289,14 @@ namespace Uml.Robotics.Ros
                     atExitRegistered = true;
                     AssemblyLoadContext.Default.Unloading += (AssemblyLoadContext obj) =>
                     {
-                        shutdown();
-                        waitForShutdown();
+                        Shutdown();
+                        WaitForShutdown();
                     };
 
                     Console.CancelKeyPress += (o, args) =>
                     {
-                        shutdown();
-                        waitForShutdown();
+                        Shutdown();
+                        WaitForShutdown();
                         args.Cancel = true;
                     };
                 }
@@ -323,7 +322,7 @@ namespace Uml.Robotics.Ros
                     var candidates = MessageTypeRegistry.GetCandidateAssemblies("Uml.Robotics.Ros.MessageBase");
                     foreach (var assembly in candidates)
                     {
-                        Logger.LogDebug($"Parse assembly: {assembly.Location}");
+                        logger.LogDebug($"Parse assembly: {assembly.Location}");
                         msgRegistry.ParseAssemblyAndRegisterRosMessages(assembly);
                         srvRegistry.ParseAssemblyAndRegisterRosServices(assembly);
                     }
@@ -336,7 +335,7 @@ namespace Uml.Robotics.Ros
                     RosOutAppender.Reset();
 
                     Network.Init(remappingArgs);
-                    Master.init(remappingArgs);
+                    Master.Init(remappingArgs);
                     ThisNode.Init(name, remappingArgs, options);
                     Param.Init(remappingArgs);
                     SimTime.Instance.SimTimeEvent += SimTimeCallback;
@@ -387,9 +386,9 @@ namespace Uml.Robotics.Ros
             if (num_params > 1)
             {
                 string reason = parms[1].GetString();
-                Logger.LogInformation("Shutdown request received.");
-                Logger.LogInformation("Reason given for shutdown: [" + reason + "]");
-                shutdown();
+                logger.LogInformation("Shutdown request received.");
+                logger.LogInformation("Reason given for shutdown: [" + reason + "]");
+                Shutdown();
             }
             XmlRpcManager.ResponseInt(1, "", 0)(r);
         }
@@ -397,12 +396,13 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     Hang the current thread until ROS shuts down
         /// </summary>
-        public static void waitForShutdown()
+        public static void WaitForShutdown()
         {
             if (shutdownTask == null)
             {
                 throw new NullReferenceException($"{nameof(shutdownTask)} was not initialized. You need to call ROS.init first.");
             }
+
             shutdownTask.Wait();
         }
 
@@ -417,18 +417,18 @@ namespace Uml.Robotics.Ros
                 if (started)
                     return;
 
-                PollManager.Reset();
+                //PollManager.Reset();          // ## remove
                 ServiceManager.Reset();
                 XmlRpcManager.Reset();
-                TopicManager.Reset();
+                //TopicManager.Reset();         // ## remove
                 ConnectionManager.Reset();
 
-                PollManager.Instance.AddPollThreadListener(CheckForShutdown);
+                //PollManager.Instance.AddPollThreadListener(CheckForShutdown);         // ## remove
                 XmlRpcManager.Instance.Bind("shutdown", ShutdownCallback);
-                TopicManager.Instance.Start();
+                TopicManagerAsync.Instance.Start();
                 ServiceManager.Instance.Start();
                 ConnectionManager.Instance.Start();
-                PollManager.Instance.Start();
+                //PollManager.Instance.Start();     // ## remove
                 XmlRpcManager.Instance.Start();
 
                 shutdownRequested = false;
@@ -442,7 +442,7 @@ namespace Uml.Robotics.Ros
         /// Check whether ROS.init() has been called.
         /// </summary>
         /// <returns>System.Boolean indicating whether ROS has been started.</returns>
-        public static bool isStarted()
+        public static bool IsStarted()
         {
             lock (startMutex)
             {
@@ -453,7 +453,7 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     Tells ROS that it should shutdown the next time it feels like doing so.
         /// </summary>
-        public static Task shutdown()
+        public static Task Shutdown()
         {
             lock (shuttingDownMutex)
             {
@@ -483,22 +483,22 @@ namespace Uml.Robotics.Ros
 
             if (started)
             {
-                Logger.LogInformation("ROS is shutting down.");
+                logger.LogInformation("ROS is shutting down.");
 
                 SimTime.Terminate();
                 RosOutAppender.Terminate();
-                GlobalNodeHandle.shutdown();
+                GlobalNodeHandle.Shutdown();
                 GlobalCallbackQueue.Disable();
                 GlobalCallbackQueue.Clear();
 
                 XmlRpcManager.Instance.Unbind("shutdown");
                 Param.Terminate();
 
-                TopicManager.Terminate();
+                TopicManagerAsync.Terminate();
                 ServiceManager.Terminate();
                 XmlRpcManager.Terminate();
                 ConnectionManager.Terminate();
-                PollManager.Terminate();
+                //PollManager.Terminate();      // ## remove
 
                 lock (startMutex)
                 {
@@ -528,8 +528,9 @@ namespace Uml.Robotics.Ros
     /// Options that can be passed to the ROS.init() function.
     /// </summary>
     [Flags]
-    public enum InitOption
+    public enum InitOptions
     {
+        None = 0,
         NosigintHandler = 1 << 0,
         AnonymousName = 1 << 1,
         NoRousout = 1 << 2

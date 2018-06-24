@@ -6,7 +6,7 @@ namespace Uml.Robotics.Ros
 {
     public static class Network
     {
-        public static string host;
+        public static string Host;
         public static int TcpRosServerPort;
 
         public static bool SplitUri(string uri, out string host, out int port)
@@ -33,22 +33,15 @@ namespace Uml.Robotics.Ros
             return true;
         }
 
-        public static bool IsPrivateIp(string ip)
-        {
-            return String.CompareOrdinal("192.168", ip) >= 7
-                || String.CompareOrdinal("10.", ip) > 3
-                || String.CompareOrdinal("169.253", ip) > 7;
-        }
-
         public static void Init(IDictionary<string, string> remappings)
         {
             if (remappings.ContainsKey("__hostname"))
             {
-                host = remappings["__hostname"];
+                Host = remappings["__hostname"];
             }
             else if (remappings.ContainsKey("__ip"))
             {
-                host = remappings["__ip"];
+                Host = remappings["__ip"];
             }
 
             if (remappings.ContainsKey("__tcpros_server_port"))
@@ -56,8 +49,8 @@ namespace Uml.Robotics.Ros
                 TcpRosServerPort = int.Parse(remappings["__tcpros_server_port"]);
             }
 
-            if (string.IsNullOrEmpty(host))
-                host = Dns.GetHostName();
+            if (string.IsNullOrEmpty(Host))
+                Host = Dns.GetHostName();
         }
     }
 }

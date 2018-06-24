@@ -41,7 +41,7 @@ namespace Uml.Robotics.Ros
         {
             TimeSpan wallDuration = new TimeSpan(0, 0, 0, 0, ROS.WallDuration);
             Logger.LogInformation("Start spinning");
-            while (ROS.ok)
+            while (ROS.OK)
             {
                 DateTime begin = DateTime.UtcNow;
                 callbackQueue.CallAvailable(ROS.WallDuration);

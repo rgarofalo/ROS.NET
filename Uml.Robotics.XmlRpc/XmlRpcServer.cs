@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
+using System.Xml;
 
 namespace Uml.Robotics.XmlRpc
 {
@@ -24,93 +25,78 @@ namespace Uml.Robotics.XmlRpc
         const string METHOD_HELP = "system.methodHelp";
         const string MULTICALL = "system.multicall";
 
-        private ILogger Logger { get; } = XmlRpcLogging.CreateLogger<XmlRpcServer>();
-        private XmlRpcDispatch _disp = new XmlRpcDispatch();
+        private readonly ILogger logger = XmlRpcLogging.CreateLogger<XmlRpcServer>();
+        private XmlRpcDispatch dispatcher = new XmlRpcDispatch();
 
-        private bool _introspectionEnabled;     // whether the introspection API is supported by this server
-        private XmlRpcServerMethod methodListMethods;
-        private XmlRpcServerMethod methrodHelp;
-        private Dictionary<string, XmlRpcServerMethod> _methods = new Dictionary<string, XmlRpcServerMethod>();
-        private int _port;
+        private int port;
+        private bool introspectionEnabled;     // whether the introspection API is supported by this server
         private TcpListener listener;
+
+        private XmlRpcServerMethod methodListMethods;
+        private XmlRpcServerMethod methodHelp;
+        private Dictionary<string, XmlRpcServerMethod> methods = new Dictionary<string, XmlRpcServerMethod>();
 
         public XmlRpcServer()
         {
             methodListMethods = new ListMethodsMethod(this);
-            methrodHelp = new HelpMethod(this);
+            methodHelp = new HelpMethod(this);
         }
 
         public void Shutdown()
         {
-            _disp.Clear();
+            dispatcher.Clear();
             listener.Stop();
         }
 
-        public int Port
-        {
-            get { return _port; }
-        }
+        public int Port =>
+            port;
 
-        public XmlRpcDispatch Dispatch
-        {
-            get { return _disp; }
-        }
+        public XmlRpcDispatch Dispatch =>
+            dispatcher;
 
         public void AddMethod(XmlRpcServerMethod method)
         {
-            _methods.Add(method.Name, method);
+            methods.Add(method.Name, method);
         }
 
         public void RemoveMethod(XmlRpcServerMethod method)
         {
-            foreach (var rec in _methods)
+            foreach (var rec in methods)
             {
                 if (method == rec.Value)
                 {
-                    _methods.Remove(rec.Key);
+                    methods.Remove(rec.Key);
                     break;
                 }
             }
         }
 
-        public void RemoveMethod(string name)
-        {
-            _methods.Remove(name);
-        }
+        public void RemoveMethod(string name) =>
+            methods.Remove(name);
 
-        public void Work(TimeSpan timeSlice)
-        {
-            _disp.Work(timeSlice);
-        }
+        public void Work(TimeSpan timeSlice) =>
+            dispatcher.Work(timeSlice);
 
         public XmlRpcServerMethod FindMethod(string name)
         {
-            if (_methods.ContainsKey(name))
-                return _methods[name];
+            if (methods.ContainsKey(name))
+                return methods[name];
             return null;
         }
 
-        public override Socket getSocket()
-        {
-            return listener?.Server;
-        }
+        public override Socket Socket =>
+            listener?.Server;
 
         public bool BindAndListen(int port, int backlog = 5)
         {
-            try
-            {
-                _port = port;
-                listener = new TcpListener(IPAddress.Any, port);
-                listener.Start(backlog);
-                _port = ((IPEndPoint)listener.Server.LocalEndPoint).Port;
-                _disp.AddSource(this, XmlRpcDispatch.EventType.ReadableEvent);
+            this.port = port;
+            listener = new TcpListener(IPAddress.Any, port);
+            listener.Start(backlog);
+            this.port = ((IPEndPoint)listener.Server.LocalEndPoint).Port;
+            dispatcher.AddSource(this, XmlRpcDispatch.EventType.ReadableEvent);
 
-                Logger.LogInformation("XmlRpcServer::bindAndListen: server listening on port {0}", _port);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            logger.LogInformation("XmlRpcServer::bindAndListen: server listening on port {0}", this.port);
+
             return true;
         }
 
@@ -118,64 +104,68 @@ namespace Uml.Robotics.XmlRpc
         // and reading the rpc request.
         public override XmlRpcDispatch.EventType HandleEvent(XmlRpcDispatch.EventType eventType)
         {
-            acceptConnection();
+            AcceptConnection();
             return XmlRpcDispatch.EventType.ReadableEvent;  // Continue to monitor this fd
         }
 
         // Accept a client connection request and create a connection to
         // handle method calls from the client.
-        private void acceptConnection()
+        private void AcceptConnection()
         {
             while (listener.Pending())
             {
                 try
                 {
-                    _disp.AddSource(new XmlRpcServerConnection(listener.AcceptSocketAsync().Result, this), XmlRpcDispatch.EventType.ReadableEvent);
-                    Logger.LogInformation("XmlRpcServer::acceptConnection: creating a connection");
+                    dispatcher.AddSource(new XmlRpcServerConnection(listener.AcceptSocketAsync().Result, this), XmlRpcDispatch.EventType.ReadableEvent);
+                    logger.LogInformation("XmlRpcServer::acceptConnection: creating a connection");
                 }
                 catch (SocketException ex)
                 {
-                    Logger.LogError("XmlRpcServer::acceptConnection: Could not accept connection ({0}).", ex.Message);
+                    logger.LogError("XmlRpcServer::acceptConnection: Could not accept connection ({0}).", ex.Message);
                     Thread.Sleep(10);
                 }
             }
         }
 
-        public void removeConnection(XmlRpcServerConnection sc)
+        public void RemoveConnection(XmlRpcServerConnection sc)
         {
-            _disp.RemoveSource(sc);
+            dispatcher.RemoveSource(sc);
         }
 
 
         // Introspection support
 
-
-        // Specify whether introspection is enabled or not. Default is enabled.
-        public void enableIntrospection(bool enabled)
+        /// <summary>
+        /// Specify whether introspection is enabled or not.
+        /// </summary>
+        public bool EnableIntrospection
         {
-            if (_introspectionEnabled == enabled)
-                return;
-
-            _introspectionEnabled = enabled;
-
-            if (enabled)
+            set
             {
-                AddMethod(methodListMethods);
-                AddMethod(methrodHelp);
-            }
-            else
-            {
-                RemoveMethod(LIST_METHODS);
-                RemoveMethod(METHOD_HELP);
+                if (introspectionEnabled == value)
+                    return;
+
+                introspectionEnabled = value;
+
+                if (value)
+                {
+                    AddMethod(methodListMethods);
+                    AddMethod(methodHelp);
+                }
+                else
+                {
+                    RemoveMethod(LIST_METHODS);
+                    RemoveMethod(METHOD_HELP);
+                }
             }
         }
 
-        private void listMethods(XmlRpcValue result)
+        private void ListMethods(XmlRpcValue result)
         {
-            result.SetArray(_methods.Count + 1);
+            result.SetArray(methods.Count + 1);
 
             int i = 0;
-            foreach (var rec in _methods)
+            foreach (var rec in methods)
             {
                 result.Set(i++, rec.Key);
             }
@@ -184,32 +174,32 @@ namespace Uml.Robotics.XmlRpc
             result.Set(i, MULTICALL);
         }
 
-        // Run the method, generate _response string
-        public string executeRequest(string request)
+        // Run the method, generate response
+        public string ExecuteRequest(string request)
         {
             string response = "";
             XmlRpcValue parms = new XmlRpcValue(), resultValue = new XmlRpcValue();
-            string methodName = parseRequest(parms, request);
-            Logger.LogWarning("XmlRpcServerConnection::executeRequest: server calling method '{0}'", methodName);
+            string methodName = ParseRequest(parms, request);
+            logger.LogWarning("XmlRpcServerConnection::ExecuteRequest: server calling method '{0}'", methodName);
 
             try
             {
-                if (!executeMethod(methodName, parms, resultValue) &&
-                    !executeMulticall(methodName, parms, resultValue))
-                    response = generateFaultResponse(methodName + ": unknown method name");
+                if (!ExecuteMethod(methodName, parms, resultValue) &&
+                    !ExecuteMulticall(methodName, parms, resultValue))
+                    response = GenerateFaultResponse(methodName + ": unknown method name");
                 else
-                    response = generateResponse(resultValue.ToXml());
+                    response = GenerateResponse(resultValue.ToXml());
             }
             catch (XmlRpcException fault)
             {
-                Logger.LogWarning("XmlRpcServerConnection::executeRequest: fault {0}.", fault.Message);
-                response = generateFaultResponse(fault.Message, fault.ErrorCode);
+                logger.LogWarning("XmlRpcServerConnection::ExecuteRequest: fault {0}.", fault.Message);
+                response = GenerateFaultResponse(fault.Message, fault.ErrorCode);
             }
             return response;
         }
 
         // Execute a named method with the specified params.
-        public bool executeMethod(string methodName, XmlRpcValue parms, XmlRpcValue result)
+        public bool ExecuteMethod(string methodName, XmlRpcValue parms, XmlRpcValue result)
         {
             XmlRpcServerMethod method = FindMethod(methodName);
 
@@ -226,20 +216,20 @@ namespace Uml.Robotics.XmlRpc
         }
 
         // Create a response from results xml
-        public string generateResponse(string resultXml)
+        public string GenerateResponse(string resultXml)
         {
             const string RESPONSE_1 = "<?xml version=\"1.0\"?>\r\n<methodResponse><params><param>\r\n\t";
             const string RESPONSE_2 = "\r\n</param></params></methodResponse>\r\n";
 
             string body = RESPONSE_1 + resultXml + RESPONSE_2;
-            string header = generateHeader(body);
+            string header = GenerateHeader(body);
             string result = header + body;
-            Logger.LogDebug("XmlRpcServerConnection::generateResponse:\n{0}\n", result);
+            logger.LogDebug("XmlRpcServerConnection::GenerateResponse:\n{0}\n", result);
             return result;
         }
 
         // Parse the method name and the argument values from the request.
-        private string parseRequest(XmlRpcValue parms, string request)
+        private string ParseRequest(XmlRpcValue parms, string request)
         {
             string methodName = "unknown";
 
@@ -270,7 +260,7 @@ namespace Uml.Robotics.XmlRpc
         }
 
         // Prepend http headers
-        private string generateHeader(string body)
+        private string GenerateHeader(string body)
         {
             return string.Format(
                 "HTTP/1.1 200 OK\r\n" +
@@ -278,26 +268,26 @@ namespace Uml.Robotics.XmlRpc
                 "Content-Type: text/xml\r\n" +
                 "Content-length: {1}\r\n\r\n",
                 XMLRPC_VERSION,
-                body.Length
+                XmlConvert.ToString(body.Length)
             );
         }
 
-        public string generateFaultResponse(string errorMsg, int errorCode = -1)
+        public string GenerateFaultResponse(string errorMsg, int errorCode = -1)
         {
-            const string RESPONSE_1 = "<?xml version=\"1.0\"?>\r\n<methodResponse><fault>\r\n\t";
-            const string RESPONSE_2 = "\r\n</fault></methodResponse>\r\n";
+            const string bodyBegin = "<?xml version=\"1.0\"?>\r\n<methodResponse><fault>\r\n\t";
+            const string bodyEnd = "\r\n</fault></methodResponse>\r\n";
 
             var faultStruct = new XmlRpcValue();
             faultStruct.Set(FAULTCODE, errorCode);
             faultStruct.Set(FAULTSTRING, errorMsg);
-            string body = RESPONSE_1 + faultStruct.ToXml() + RESPONSE_2;
-            string header = generateHeader(body);
+            string body = bodyBegin + faultStruct.ToXml() + bodyEnd;
+            string header = GenerateHeader(body);
 
             return header + body;
         }
 
-        // Execute multiple calls and return the results in an array.
-        public bool executeMulticall(string methodNameRoot, XmlRpcValue parms, XmlRpcValue result)
+        // Execute multiple calls and return the results in an XML RPC array.
+        public bool ExecuteMulticall(string methodNameRoot, XmlRpcValue parms, XmlRpcValue result)
         {
             if (methodNameRoot != SYSTEM_MULTICALL)
                 return false;
@@ -326,8 +316,8 @@ namespace Uml.Robotics.XmlRpc
                 resultValue.SetArray(1);
                 try
                 {
-                    if (!executeMethod(methodName, methodParams, resultValue[0]) &&
-                        !executeMulticall(methodName, parms, resultValue[0]))
+                    if (!ExecuteMethod(methodName, methodParams, resultValue[0]) &&
+                        !ExecuteMulticall(methodName, parms, resultValue[0]))
                     {
                         result[i].Set(FAULTCODE, -1);
                         result[i].Set(FAULTSTRING, methodName + ": unknown method name");
@@ -356,7 +346,7 @@ namespace Uml.Robotics.XmlRpc
 
             public override void Execute(XmlRpcValue parms, XmlRpcValue result)
             {
-                this.Server.listMethods(result);
+                this.Server.ListMethods(result);
             }
 
             public override string Help()
@@ -365,8 +355,9 @@ namespace Uml.Robotics.XmlRpc
             }
         };
 
-
-        // Retrieve the help string for a named method
+        /// <summary>
+        /// Retrieve the help string for a named method
+        /// </summary>
         private class HelpMethod : XmlRpcServerMethod
         {
             public HelpMethod(XmlRpcServer server)

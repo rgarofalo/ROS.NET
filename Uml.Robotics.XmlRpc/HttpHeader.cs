@@ -71,11 +71,11 @@ namespace Uml.Robotics.XmlRpc
             COMPLETE_HEADER
         }
 
-        private ILogger Logger { get; } = XmlRpcLogging.CreateLogger<HttpHeader>();
-        Dictionary<HttpHeaderField, string> m_StrHTTPField = new Dictionary<HttpHeaderField, string>();
-        Dictionary<HttpHeaderField, string> HeaderFieldToStrings = new Dictionary<HttpHeaderField, string>();
+        readonly ILogger logger = XmlRpcLogging.CreateLogger<HttpHeader>();
+        Dictionary<HttpHeaderField, string> headerFields = new Dictionary<HttpHeaderField, string>();
+        Dictionary<HttpHeaderField, string> headerFieldNames = new Dictionary<HttpHeaderField, string>();
         byte[] data = new byte[4096];
-        string headerSoFar = "";
+        string headerSoFar = string.Empty;
         ParseStatus headerStatus = ParseStatus.UNINITIALIZED;
 
         private HttpHeader()
@@ -104,9 +104,9 @@ namespace Uml.Robotics.XmlRpc
             get { return headerSoFar; }
         }
 
-        public Dictionary<HttpHeaderField, string> HTTPField
+        public Dictionary<HttpHeaderField, string> HeaderFields
         {
-            get { return m_StrHTTPField; }
+            get { return headerFields; }
         }
 
         public byte[] Data
@@ -123,7 +123,7 @@ namespace Uml.Robotics.XmlRpc
             {
                 int ret;
                 string value;
-                if (m_StrHTTPField.TryGetValue(HttpHeaderField.Content_Length, out value) && int.TryParse(value, out ret))
+                if (headerFields.TryGetValue(HttpHeaderField.Content_Length, out value) && int.TryParse(value, out ret))
                     return ret;
                 return -1;
             }
@@ -155,12 +155,14 @@ namespace Uml.Robotics.XmlRpc
                 if (betweenHeaderAndData > 0)
                 {
                     headerStatus = ParseStatus.COMPLETE_HEADER;
+
                     //found the boundary between header and data
                     headerSoFar += HTTPRequest.Substring(0, betweenHeaderAndData);
-                    parseHeader(headerSoFar);
+                    ParseHeader(headerSoFar);
 
                     //shorten the request so we can fall through
                     HTTPRequest = HTTPRequest.Substring(betweenHeaderAndData + 4);
+
                     //
                     // FALL THROUGH to header complete case
                     //
@@ -169,7 +171,7 @@ namespace Uml.Robotics.XmlRpc
                 {
                     headerSoFar += HTTPRequest;
                     headerStatus = ParseStatus.PARTIAL_HEADER;
-                    parseHeader(headerSoFar);
+                    ParseHeader(headerSoFar);
                     return headerStatus;
                 }
             }
@@ -183,7 +185,7 @@ namespace Uml.Robotics.XmlRpc
                     Data = new byte[0];
                     DataString = "";
                     headerSoFar = "";
-                    m_StrHTTPField.Clear();
+                    headerFields.Clear();
                     return Append(HTTPRequest);
                 }
 
@@ -191,7 +193,7 @@ namespace Uml.Robotics.XmlRpc
                 if (ContentComplete)
                 {
                     Data = Encoding.ASCII.GetBytes(DataString);
-                    Logger.LogDebug("DONE READING CONTENT");
+                    logger.LogDebug("DONE READING CONTENT");
                 }
             }
 
@@ -216,20 +218,21 @@ namespace Uml.Robotics.XmlRpc
             return -1;
         }
 
-        private void parseHeader(string header)
+        private void ParseHeader(string header)
         {
-            HttpHeaderField HHField;
+            HttpHeaderField headerField;
             string HTTPfield = null;
             int index;
             string buffer;
+
             for (int f = (int)HttpHeaderField.Accept; f < (int)HttpHeaderField.HEADER_VALUE_MAX_PLUS_ONE; f++)
             {
-                HHField = (HttpHeaderField)f;
+                headerField = (HttpHeaderField)f;
                 HTTPfield = null;
-                if (!HeaderFieldToStrings.TryGetValue(HHField, out HTTPfield) || HTTPField == null)
+                if (!headerFieldNames.TryGetValue(headerField, out HTTPfield) || HeaderFields == null)
                 {
-                    HTTPfield = "\n" + HHField.ToString().Replace('_', '-') + ": ";
-                    HeaderFieldToStrings.Add(HHField, HTTPfield);
+                    HTTPfield = "\n" + headerField.ToString().Replace('_', '-') + ": ";
+                    headerFieldNames.Add(headerField, HTTPfield);
                 }
 
                 index = IndexOfNoCase(header, HTTPfield);
@@ -238,16 +241,22 @@ namespace Uml.Robotics.XmlRpc
 
                 buffer = header.Substring(index + HTTPfield.Length);
                 index = buffer.IndexOf("\r\n");
-                if (index == -1)
-                    m_StrHTTPField[HHField] = buffer.Trim();
-                else
-                    m_StrHTTPField[HHField] = buffer.Substring(0, index).Trim();
 
-                if (m_StrHTTPField[HHField].Length == 0)
+                if (index == -1)
                 {
-                    Logger.LogWarning("HTTP HEADER: field \"{0}\" has a length of 0", HHField.ToString());
+                    headerFields[headerField] = buffer.Trim();
                 }
-                Logger.LogDebug("HTTP HEADER: Index={0} | champ={1} = {2}", f, HTTPfield.Substring(1), m_StrHTTPField[HHField]);
+                else
+                {
+                    headerFields[headerField] = buffer.Substring(0, index).Trim();
+                }
+
+                if (headerFields[headerField].Length == 0)
+                {
+                    logger.LogWarning("HTTP HEADER: field \"{0}\" has a length of 0", headerField);
+                }
+
+                logger.LogDebug("HTTP HEADER: Index={0} | champ={1} = {2}", f, HTTPfield.Substring(1), headerFields[headerField]);
             }
         }
     }

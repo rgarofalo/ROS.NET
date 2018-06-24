@@ -1,201 +1,176 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
-    public class TransportPublisherLink : PublisherLink, IDisposable
+    /// <summary>
+    /// Establishes a connection to a publisher and reads messages from it.
+    /// </summary>
+    internal class TransportPublisherLink
+        : PublisherLink
     {
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<TransportPublisherLink>();
-        public Connection connection;
-        public bool dropping;
-        private bool needs_retry;
-        private DateTime next_retry;
-        private TimeSpan retry_period;
-        private WrappedTimer retry_timer;
+        private static readonly TimeSpan BASE_RETRY_DELAY = TimeSpan.FromMilliseconds(50);
+        private static readonly TimeSpan MAX_RETRY_DELAY = TimeSpan.FromSeconds(2);
 
-        public TransportPublisherLink(Subscription parent, string xmlrpc_uri) : base(parent, xmlrpc_uri)
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<TransportPublisherLink>();
+
+        ConnectionAsync connection;
+        bool dropping;
+
+        string host;
+        int port;
+
+        CancellationTokenSource cts;
+        CancellationToken cancel;
+        Task publisherLoop;
+        TimeSpan retryDelay;
+
+        public TransportPublisherLink(SubscriptionAsync parent, string xmlRpcUri)
+            : base(parent, xmlRpcUri)
         {
-            needs_retry = false;
-            dropping = false;
+            retryDelay = BASE_RETRY_DELAY;
+            cts = new CancellationTokenSource();
+            cancel = cts.Token;
         }
 
-        #region IDisposable Members
-
-        public void Dispose()
+        public override void Dispose()
         {
             dropping = true;
-            if (retry_timer != null)
+            cts.Cancel();
+            Parent.RemovePublisherLink(this);
+            if (publisherLoop != null)
             {
-                ROS.timerManager.RemoveTimer(ref retry_timer);
-            }
-            connection.drop(Connection.DropReason.Destructing);
-        }
-
-        #endregion
-
-        public bool initialize(Connection connection)
-        {
-            Logger.LogDebug("Init transport publisher link: " + parent.name);
-            this.connection = connection;
-            connection.DroppedEvent += onConnectionDropped;
-            if (connection.transport.getRequiresHeader())
-            {
-                connection.setHeaderReceivedCallback(onHeaderReceived);
-                IDictionary<string, string> header = new Dictionary<string, string>();
-
-                header["topic"] = parent.name;
-                header["md5sum"] = parent.md5sum;
-                header["callerid"] = ThisNode.Name;
-                header["type"] = parent.datatype;
-                header["tcp_nodelay"] = "1";
-                connection.writeHeader(header, onHeaderWritten);
-            }
-            else
-            {
-                connection.read(4, onMessageLength);
-            }
-            return true;
-        }
-
-        public override void drop()
-        {
-            dropping = true;
-            connection.drop(Connection.DropReason.Destructing);
-            if (parent != null)
-                parent.removePublisherLink(this);
-            else
-            {
-                Logger.LogDebug("Last publisher link removed");
+                publisherLoop.Wait();       // wait for publisher loop to terminate
             }
         }
 
-        private void onConnectionDropped(Connection conn, Connection.DropReason reason)
+        private async Task WriteHeader()
         {
-            Logger.LogDebug("TransportPublisherLink: onConnectionDropped -- " + reason);
-
-            if (dropping || conn != connection)
-                return;
-            if (reason == Connection.DropReason.TransportDisconnect)
+            var header = new Dictionary<string, string>
             {
-                needs_retry = true;
-                next_retry = DateTime.UtcNow.Add(retry_period);
-                if (retry_timer == null)
+                ["topic"] = Parent.Name,
+                ["md5sum"] = Parent.Md5Sum,
+                ["callerid"] = ThisNode.Name,
+                ["type"] = Parent.DataType,
+                ["tcp_nodelay"] = "1"
+            };
+            await connection.WriteHeader(header, cancel);
+        }
+
+        private async Task HandleConnection()
+        {
+            // establish connection
+            using (var client = new TcpClient())
+            {
+                await client.ConnectAsync(host, port);
+                client.NoDelay = true;
+
+                try
                 {
-                    retry_timer = ROS.timerManager.StartTimer(onRetryTimer, 100);
+                    this.connection = new ConnectionAsync(client);
+
+                    // write/read header handshake
+                    await WriteHeader();
+                    var headerFields = await connection.ReadHeader(cancel);
+                    SetHeader(new Header(headerFields));
+
+                    while (!cancel.IsCancellationRequested)
+                    {
+                        // read message length
+                        var lengthBuffer = await connection.ReadBlock(4, cancel);
+                        int length = BitConverter.ToInt32(lengthBuffer, 0);
+
+                        if (length > ConnectionAsync.MESSAGE_SIZE_LIMIT)
+                        {
+                            var message = $"Message received in TransportPublisherLink exceeds length limit of {ConnectionAsync.MESSAGE_SIZE_LIMIT}. Dropping connection";
+                            throw new RosException(message);
+                        }
+
+                        // read message
+                        var messageBuffer = await connection.ReadBlock(length, cancel);
+
+                        // deserialize message
+                        RosMessage msg = RosMessage.Generate(Parent.DataType);
+                        msg.Serialized = messageBuffer;
+                        msg.connection_header = this.Header.Values;
+                        HandleMessage(msg);
+
+                        // reset retry delay after first successfully processed message
+                        retryDelay = BASE_RETRY_DELAY;
+                    }
+
+                    client.Close();
                 }
-                else
+                finally
                 {
-                    retry_timer.Restart();
-                }
-            }
-            else
-            {
-                if (reason == Connection.DropReason.HeaderError)
-                {
-                    Logger.LogError("Error in the Header: " +
-                                    (parent != null ? parent.name : "unknown"));
-                }
-                drop();
-            }
-        }
-
-        private bool onHeaderReceived(Connection conn, Header header)
-        {
-            if (conn != connection)
-                return false;
-            if (!setHeader(header))
-            {
-                drop();
-                return false;
-            }
-            if (retry_timer != null)
-                ROS.timerManager.RemoveTimer(ref retry_timer);
-            connection.read(4, onMessageLength);
-            return true;
-        }
-
-        public void handleMessage<T>(T m, bool ser, bool nocopy) where T : RosMessage, new()
-        {
-            stats.bytesReceived += m.Serialized.Length;
-            stats.messagesReceived++;
-            m.connection_header = getHeader().Values;
-            if (parent != null)
-                stats.drops += parent.handleMessage(m, ser, nocopy, connection.header.Values, this);
-            else
-                Console.WriteLine($"{nameof(parent)} is null");
-        }
-
-        private bool onHeaderWritten(Connection conn)
-        {
-            return true;
-        }
-
-        private bool onMessageLength(Connection conn, byte[] buffer, int size, bool success)
-        {
-            if (retry_timer != null)
-                ROS.timerManager.RemoveTimer(ref retry_timer);
-            if (!success)
-            {
-                if (connection != null)
-                    connection.read(4, onMessageLength);
-                return true;
-            }
-            if (conn != connection || size != 4)
-                return false;
-            int len = BitConverter.ToInt32(buffer, 0);
-            int lengthLimit = 1000000000;
-            if (len > lengthLimit)
-            {
-                Logger.LogError($"TransportPublisherLink length exceeds limit of {lengthLimit}. Dropping connection");
-                drop();
-                return false;
-            }
-            connection.read(len, onMessage);
-            return true;
-        }
-
-        private bool onMessage(Connection conn, byte[] buffer, int size, bool success)
-        {
-            if (!success || conn == null || conn != connection)
-                return false;
-
-            if (success)
-            {
-                RosMessage msg = RosMessage.Generate(parent.msgtype);
-                msg.Serialized = buffer;
-                msg.connection_header = getHeader().Values;
-                handleMessage(msg, true, false);
-            }
-            if (success || !connection.transport.getRequiresHeader())
-                connection.read(4, onMessageLength);
-            return true;
-        }
-
-        private void onRetryTimer(object o)
-        {
-            Logger.LogDebug("TransportPublisherLink: onRetryTimer");
-            if (dropping)
-                return;
-
-            if (needs_retry && DateTime.UtcNow.Subtract(next_retry).TotalMilliseconds < 0)
-            {
-                retry_period =
-                    TimeSpan.FromSeconds((retry_period.TotalSeconds > 20) ? 20 : (2 * retry_period.TotalSeconds));
-                needs_retry = false;
-                TcpTransport old_transport = connection.transport;
-                string host = old_transport.connectedHost;
-                int port = old_transport.connectedPort;
-
-                TcpTransport transport = new TcpTransport();
-                if (transport.connect(host, port))
-                {
-                    Connection conn = new Connection();
-                    conn.initialize(transport, false, null);
-                    initialize(conn);
-                    ConnectionManager.Instance.AddConnection(conn);
+                    this.connection = null;
                 }
             }
+        }
+
+        public async Task RunPublisherLoopAsync()
+        {
+            await Task.Yield();
+
+            while (true)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                try
+                {
+                    await HandleConnection();
+                }
+                catch (HeaderErrorException)
+                {
+                    logger.LogError($"Error in the Header: {Parent?.Name ?? "unknown"}");
+                    return;     // no retry in case of header error
+                }
+                catch (Exception e)
+                {
+                    if (dropping || e is TaskCanceledException)
+                    {
+                        return;     // no retry when disposing
+                    }
+
+                    logger.LogError(e, e.Message);
+
+                    retryDelay = retryDelay * 2;
+                    if (retryDelay > MAX_RETRY_DELAY)
+                    {
+                        retryDelay = MAX_RETRY_DELAY;
+                    }
+
+                    // wait abortable for retry
+                    await Task.Delay(retryDelay, cancel);
+                }
+            }
+        }
+
+        public void Initialize(string host, int port)
+        {
+            logger.LogDebug("Init transport publisher link: " + Parent.Name);
+
+            this.host = host;
+            this.port = port;
+
+            publisherLoop = RunPublisherLoopAsync();
+        }
+
+        public void HandleMessage<T>(T m)
+            where T : RosMessage, new()
+        {
+            Stats.BytesReceived += m.Serialized.Length;
+            Stats.MessagesReceived++;
+            m.connection_header = this.Header.Values;
+            if (Parent != null)
+                Stats.Drops += Parent.HandleMessage(m, true, false, connection.header.Values, this);
+            else
+                Console.WriteLine($"{nameof(Parent)} is null");
         }
     }
 }

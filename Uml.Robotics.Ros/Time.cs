@@ -11,67 +11,56 @@ namespace Uml.Robotics.Ros
         public delegate void SimTimeDelegate(TimeSpan ts);
         public event SimTimeDelegate SimTimeEvent;
 
-        public static SimTime Instance
-        {
-            get { return instance.Value; }
-        }
-
-        private static ILogger Logger { get; } = ApplicationLogging.CreateLogger<SimTime>();
+        private static readonly ILogger logger = ApplicationLogging.CreateLogger<SimTime>();
         private static Lazy<SimTime> instance = new Lazy<SimTime>(LazyThreadSafetyMode.ExecutionAndPublication);
+
+        public static SimTime Instance =>
+            instance.Value;
+
+        internal static void Terminate() =>
+            Instance.Shutdown();
+
+        internal static void Reset() =>
+            instance = new Lazy<SimTime>(LazyThreadSafetyMode.ExecutionAndPublication);
+
         private bool checkedSimTime;
         private NodeHandle nodeHandle;
         private bool simTime;
         private Subscriber simTimeSubscriber;
 
-
-        internal static void Terminate()
-        {
-            Instance.Shutdown();
-        }
-
-
-        internal static void Reset()
-        {
-            instance = new Lazy<SimTime>(LazyThreadSafetyMode.ExecutionAndPublication);
-        }
-
-
-        public SimTime()
+        private SimTime()
         {
             new Thread(() =>
             {
                 try
                 {
-                    while (!ROS.isStarted() && !ROS.shutting_down)
+                    while (!ROS.IsStarted() && !ROS.shutting_down)
                     {
                         Thread.Sleep(100);
                     }
                     if (!ROS.shutting_down)
                     {
                         nodeHandle = new NodeHandle();
-                        simTimeSubscriber = nodeHandle.subscribe<Clock>("/clock", 1, SimTimeCallback);
+                        simTimeSubscriber = nodeHandle.Subscribe<Clock>("/clock", 1, SimTimeCallback);
                     }
                 }
                 catch (Exception e)
                 {
-                    Logger.LogError("Caught exception in sim time thread: " + e.Message);
+                    logger.LogError("Caught exception in sim time thread: " + e.Message);
                 }
             }).Start();
         }
-
 
         public bool IsTimeSimulated
         {
             get { return simTime; }
         }
 
-
         public void Shutdown()
         {
             simTimeSubscriber?.shutdown();
-            nodeHandle?.shutdown();
+            nodeHandle?.Shutdown();
         }
-
 
         private void SimTimeCallback(Clock time)
         {

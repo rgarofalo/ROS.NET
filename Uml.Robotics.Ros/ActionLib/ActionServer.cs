@@ -94,9 +94,9 @@ namespace Uml.Robotics.Ros.ActionLib
             }
 
             // Emmitting topics
-            resultPublisher = nodeHandle.advertise<ResultActionMessage<TResult>>("result", QueueSize);
-            feedbackPublisher = nodeHandle.advertise<FeedbackActionMessage<TFeedback>>("feedback", QueueSize);
-            goalStatusPublisher = nodeHandle.advertise<GoalStatusArray>("status", QueueSize);
+            resultPublisher = nodeHandle.Advertise<ResultActionMessage<TResult>>("result", QueueSize);
+            feedbackPublisher = nodeHandle.Advertise<FeedbackActionMessage<TFeedback>>("feedback", QueueSize);
+            goalStatusPublisher = nodeHandle.Advertise<GoalStatusArray>("status", QueueSize);
 
             // Read the frequency with which to publish status from the parameter server
             // If not specified locally explicitly, use search param to find actionlib_status_frequency
@@ -126,8 +126,8 @@ namespace Uml.Robotics.Ros.ActionLib
             }
 
             // Message consumers
-            goalSubscriber = nodeHandle.subscribe<GoalActionMessage<TGoal>>("goal", this.QueueSize, GoalCallback);
-            cancelSubscriber = nodeHandle.subscribe<GoalID>("cancel", this.QueueSize, CancelCallback);
+            goalSubscriber = nodeHandle.Subscribe<GoalActionMessage<TGoal>>("goal", this.QueueSize, GoalCallback);
+            cancelSubscriber = nodeHandle.Subscribe<GoalID>("cancel", this.QueueSize, CancelCallback);
 
             started = true;
             PublishStatus();

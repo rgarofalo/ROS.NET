@@ -5,12 +5,12 @@ using System.Threading;
 using System.Linq;
 using n = System.Net;
 using ns = System.Net.Sockets;
-using ROS_Comm.APMWorkaround;
+//using ROS_Comm.APMWorkaround;
 using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
-    public static class SocketExtensions
+    /*public static class SocketExtensions
     {
         public static void SetTcpKeepAlive(this Socket socket, uint keepaliveTime, uint keepaliveInterval)
         {
@@ -280,5 +280,5 @@ namespace Uml.Robotics.Ros
                 realSocket = null;
             }
         }
-    }
+    }*/
 }

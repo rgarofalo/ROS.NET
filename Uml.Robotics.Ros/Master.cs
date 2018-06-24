@@ -1,29 +1,26 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Threading;
-using Microsoft.Extensions.Logging;
-using Uml.Robotics.XmlRpc;
 using System.Threading.Tasks;
+using Uml.Robotics.XmlRpc;
 
 namespace Uml.Robotics.Ros
 {
     public static class Master
     {
-        // cannot use the usubal CreateLogger<master>(); here because this calls is static
-        private static ILogger Logger {get;} = ApplicationLogging.CreateLogger(nameof(Master));
-
+        private static readonly ILogger logger = ApplicationLogging.CreateLogger(nameof(Master));
         private static int port;
         private static string host;
         private static string uri;
-        public static TimeSpan retryTimeout = TimeSpan.FromSeconds(5);
 
-        public static void init(IDictionary<string, string> remapping_args)
+        public static TimeSpan RetryTimeout = TimeSpan.FromSeconds(5);
+
+        public static void Init(IDictionary<string, string> remappingArgs)
         {
             uri = string.Empty;
-            if (remapping_args.ContainsKey("__master"))
+            if (remappingArgs.ContainsKey("__master"))
             {
-                uri = (string) remapping_args["__master"];
+                uri = (string) remappingArgs["__master"];
                 ROS.ROS_MASTER_URI = uri;
             }
             if (string.IsNullOrEmpty(uri))
@@ -38,11 +35,11 @@ namespace Uml.Robotics.Ros
         ///     Check if ROS master is running by querying the PID of the master process.
         /// </summary>
         /// <returns></returns>
-        public static bool check()
+        public static async Task<bool> Check()
         {
             XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             args.Set(0, ThisNode.Name);
-            return execute("getPid", args, result, payload, false);
+            return await ExecuteAsync("getPid", args, result, payload, false);
         }
 
         /// <summary>
@@ -50,20 +47,22 @@ namespace Uml.Robotics.Ros
         /// </summary>
         /// <param name="topics"> List to store topics</param>
         /// <returns></returns>
-        public static bool getTopics(ref TopicInfo[] topics)
+        public static async Task<IList<TopicInfo>> GetTopics()
         {
-            List<TopicInfo> topicss = new List<TopicInfo>();
+            List<TopicInfo> topics = new List<TopicInfo>();
             XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             args.Set(0, ThisNode.Name);
             args.Set(1, "");
-            if (!execute("getPublishedTopics", args, result, payload, true))
-                return false;
 
-            topicss.Clear();
+            if (!await ExecuteAsync("getPublishedTopics", args, result, payload, true))
+            {
+                throw new Exception("getPublishedTopics failed");
+            }
+
+            topics.Clear();
             for (int i = 0; i < payload.Count; i++)
-                topicss.Add(new TopicInfo(payload[i][0].GetString(), payload[i][1].GetString()));
-            topics = topicss.ToArray();
-            return true;
+                topics.Add(new TopicInfo(payload[i][0].GetString(), payload[i][1].GetString()));
+            return topics;
         }
 
         /// <summary>
@@ -71,16 +70,17 @@ namespace Uml.Robotics.Ros
         /// </summary>
         /// <param name="nodes">List to store nodes</param>
         /// <returns></returns>
-        public static bool getNodes(ref string[] nodes)
+        public static async Task<IList<string>> GetNodes()
         {
             List<string> names = new List<string>();
             XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             args.Set(0, ThisNode.Name);
 
-            if (!execute("getSystemState", args, result, payload, true))
+            if (!await ExecuteAsync("getSystemState", args, result, payload, true))
             {
-                return false;
+                throw new Exception("getSystemState failed");
             }
+
             for (int i = 0; i < payload.Count; i++)
             {
                 for (int j = 0; j < payload[i].Count; j++)
@@ -93,16 +93,16 @@ namespace Uml.Robotics.Ros
                     }
                 }
             }
-            nodes = names.ToArray();
-            return true;
+            return names;
         }
 
-        internal static XmlRpcClient clientForNode(string nodename)
+        internal static async Task<XmlRpcClient> ClientForNode(string nodeName)
         {
-            var args = new XmlRpcValue(ThisNode.Name, nodename);
+            var args = new XmlRpcValue(ThisNode.Name, nodeName);
             var resp = new XmlRpcValue();
             var payl = new XmlRpcValue();
-            if (!execute("lookupNode", args, resp, payl, true))
+
+            if (!await ExecuteAsync("lookupNode", args, resp, payl, true))
                 return null;
 
             if (!XmlRpcManager.Instance.ValidateXmlRpcResponse("lookupNode", resp, payl))
@@ -115,16 +115,16 @@ namespace Uml.Robotics.Ros
             return new XmlRpcClient(nodeHost, nodePort);
         }
 
-        public static bool kill(string node)
+        public static async Task<bool> Kill(string node)
         {
-            var cl = clientForNode(node);
+            var cl = await ClientForNode(node);
             if (cl == null)
                 return false;
 
             XmlRpcValue req = new XmlRpcValue(), resp = new XmlRpcValue(), payl = new XmlRpcValue();
             req.Set(0, ThisNode.Name);
             req.Set(1, $"Node '{ThisNode.Name}' requests shutdown.");
-            var respose = cl.Execute("shutdown", req);
+            var respose = await cl.ExecuteAsync("shutdown", req);
             if (!respose.Success || !XmlRpcManager.Instance.ValidateXmlRpcResponse("shutdown", respose.Value, payl))
                 return false;
 
@@ -144,6 +144,7 @@ namespace Uml.Robotics.Ros
         {
             bool supprressWarning = false;
             var startTime = DateTime.UtcNow;
+
             try
             {
                 var client = new XmlRpcClient(host, port);
@@ -160,19 +161,15 @@ namespace Uml.Robotics.Ros
                         response.Set(result.Value);
                         if (result.Success)
                         {
-                            // validateXmlrpcResponse logs error in case of validation error
-                            // So we don't need any logging here.
-                            if (XmlRpcManager.Instance.ValidateXmlRpcResponse(method, result.Value, payload))
-                                return true;
-                            else
-                                return false;
+                            // validateXmlrpcResponse logs error in case of validation error (we don't need any logging here.)
+                            return XmlRpcManager.Instance.ValidateXmlRpcResponse(method, result.Value, payload);
                         }
                         else
                         {
                             if (response.IsArray && response.Count >= 2)
-                                Logger.LogError("Execute failed: return={0}, desc={1}", response[0].GetInt(), response[1].GetString());
+                                logger.LogError("Execute failed: return={0}, desc={1}", response[0].GetInt(), response[1].GetString());
                             else
-                                Logger.LogError("response type: " + response.Type.ToString());
+                                logger.LogError("response type: " + response.Type.ToString());
                         }
                     }
                     catch (Exception ex)
@@ -182,17 +179,17 @@ namespace Uml.Robotics.Ros
                         {
                             if (!supprressWarning)
                             {
-                                Logger.LogWarning(
-                                    $"[{method}] Could not connect to master at [{host}:{port}]. Retrying for the next {retryTimeout.TotalSeconds} seconds."
+                                logger.LogWarning(
+                                    $"[{method}] Could not connect to master at [{host}:{port}]. Retrying for the next {RetryTimeout.TotalSeconds} seconds."
                                 );
                                 supprressWarning = true;
                             }
 
                             // timeout expired, throw exception
-                            if (retryTimeout.TotalSeconds > 0 && DateTime.UtcNow.Subtract(startTime) > retryTimeout)
+                            if (RetryTimeout.TotalSeconds > 0 && DateTime.UtcNow.Subtract(startTime) > RetryTimeout)
                             {
-                                Logger.LogError("[{0}] Timed out trying to connect to the master [{1}:{2}] after [{1}] seconds",
-                                                method, host, port, retryTimeout.TotalSeconds);
+                                logger.LogError("[{0}] Timed out trying to connect to the master [{1}:{2}] after [{1}] seconds",
+                                                method, host, port, RetryTimeout.TotalSeconds);
 
                                 throw new RosException($"Cannot connect to ROS Master at {host}:{port}", ex);
                             }
@@ -201,7 +198,6 @@ namespace Uml.Robotics.Ros
                         {
                             throw new RosException($"Cannot connect to ROS Master at {host}:{port}", ex);
                         }
-
                     }
 
                     await Task.Delay(250);
@@ -212,9 +208,11 @@ namespace Uml.Robotics.Ros
             }
             catch (ArgumentNullException e)
             {
-                Logger.LogError(e.ToString());
+                logger.LogError(e, e.Message);
             }
-            Logger.LogError("Master API call: {0} failed!\n\tRequest:\n{1}", method, request);
+
+            logger.LogError("Master API call: {0} failed!\n\tRequest:\n{1}", method, request);
+
             return false;
         }
 
@@ -226,7 +224,7 @@ namespace Uml.Robotics.Ros
         /// <param name="response">Full response including status code and status message. Initially empty.</param>
         /// <param name="payload">Location to store the actual data requested, if any.</param>
         /// <returns></returns>
-        public static bool execute(string method, XmlRpcValue request, XmlRpcValue response, XmlRpcValue payload, bool waitForMaster)
+        public static bool Execute(string method, XmlRpcValue request, XmlRpcValue response, XmlRpcValue payload, bool waitForMaster)
         {
             return ExecuteAsync(method, request, response, payload, waitForMaster).Result;
         }

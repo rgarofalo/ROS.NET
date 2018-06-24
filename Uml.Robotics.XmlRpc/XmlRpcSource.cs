@@ -10,41 +10,23 @@ namespace Uml.Robotics.XmlRpc
     {
         private const int READ_BUFFER_LENGTH = 4096;
 
-        private ILogger Logger { get; } = XmlRpcLogging.CreateLogger<XmlRpcSource>();
+        private readonly ILogger logger = XmlRpcLogging.CreateLogger<XmlRpcSource>();
 
-        private bool keepOpen;      // In the client, keep connections open if you intend to make multiple calls.
+        /// <summary>
+        /// In the client, keep connections open if you intend to make multiple calls.
+        /// </summary>
+        public bool KeepOpen { get; set; }
 
-        public bool KeepOpen
-        {
-            get { return keepOpen; }
-            set { keepOpen = value; }
-        }
+        public virtual NetworkStream Stream => null;
+        public virtual Socket Socket => null;
+        public virtual void Close() { }
 
-        public virtual NetworkStream getStream()
-        {
-            return null;
-        }
+        public abstract XmlRpcDispatch.EventType HandleEvent(XmlRpcDispatch.EventType eventType);
 
-        public virtual Socket getSocket()
-        {
-            return null;
-        }
-
-        public virtual void Close()
-        {
-            throw new NotImplementedException();
-        }
-
-        public virtual XmlRpcDispatch.EventType HandleEvent(XmlRpcDispatch.EventType eventType)
-        {
-            throw new NotImplementedException();
-        }
-
-        internal virtual bool readHeader(ref HttpHeader header)
+        internal virtual bool ReadHeader(ref HttpHeader header)
         {
             // Read available data
-            int dataLen = 0;
-            var stream = getStream();
+            NetworkStream stream = this.Stream;
             if (stream == null)
             {
                 throw new Exception("Could not access network stream");
@@ -53,10 +35,12 @@ namespace Uml.Robotics.XmlRpc
             byte[] data = new byte[READ_BUFFER_LENGTH];
             try
             {
-                dataLen = stream.Read(data, 0, READ_BUFFER_LENGTH);
+                int dataLen = stream.Read(data, 0, READ_BUFFER_LENGTH);
 
                 if (dataLen == 0)
-                    return false;   // If it is disconnect
+                {
+                    return false;   // zero bytes read -> graceful disconnect
+                }
 
                 if (header == null)
                 {
@@ -64,16 +48,19 @@ namespace Uml.Robotics.XmlRpc
                     Debug.Assert(header.HeaderStatus != HttpHeader.ParseStatus.UNINITIALIZED);
                 }
                 else if (header.Append(Encoding.ASCII.GetString(data, 0, dataLen)) == HttpHeader.ParseStatus.PARTIAL_HEADER)
-                    return true; //if we successfully append a piece of the header, return true, but DO NOT change states
+                {
+                    // if we successfully append a piece of the header, return true, but DO NOT change states
+                    return true;
+                }
             }
             catch (SocketException ex)
             {
-                Logger.LogError("XmlRpcServerConnection::readHeader: error while reading header ({0}).", ex.Message);
+                logger.LogError("XmlRpcServerConnection::readHeader: error while reading header ({0}).", ex.Message);
                 return false;
             }
             catch (Exception ex)
             {
-                Logger.LogError("XmlRpcServerConnection::readHeader: error while reading header ({0}).", ex.Message);
+                logger.LogError("XmlRpcServerConnection::readHeader: error while reading header ({0}).", ex.Message);
                 return false;
             }
 

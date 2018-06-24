@@ -136,7 +136,7 @@ namespace Uml.Robotics.Ros
         private void ThreadFunc()
         {
             TimeSpan wallDuration = new TimeSpan(0, 0, 0, 0, ROS.WallDuration);
-            while (ROS.ok)
+            while (ROS.OK)
             {
                 DateTime begin = DateTime.UtcNow;
                 CallAvailable(ROS.WallDuration);
@@ -253,7 +253,7 @@ namespace Uml.Robotics.Ros
                 calling += tls.Count;
             }
             //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: TLS count {tls.Count}");
-            while (tls.Count > 0 && ROS.ok)
+            while (tls.Count > 0 && ROS.OK)
             {
                 //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: call {tls.head.Callback.ToString()}");
                 if (CallOne(tls) != CallOneResult.Empty)

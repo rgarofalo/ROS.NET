@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Uml.Robotics.Ros
 {
-    public class Subscription
+  /*  public class Subscription
     {
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<Subscription>();
 
@@ -89,11 +89,11 @@ namespace Uml.Robotics.Ros
                 foreach (PublisherLink link in publisher_links)
                 {
                     XmlRpcValue v = new XmlRpcValue();
-                    var s = link.stats;
+                    var s = link.Stats;
                     v.Set(0, link.ConnectionID);
-                    v.Set(1, s.bytesReceived);
-                    v.Set(2, s.messagesReceived);
-                    v.Set(3, s.drops);
+                    v.Set(1, s.BytesReceived);
+                    v.Set(2, s.MessagesReceived);
+                    v.Set(3, s.Drops);
                     v.Set(4, 0);
                     conn_data.Set(cidx++, v);
                 }
@@ -143,7 +143,7 @@ namespace Uml.Robotics.Ros
             }
             foreach (PublisherLink it in subscribers)
             {
-                it.drop();
+                it.Drop();
             }
         }
 
@@ -224,7 +224,7 @@ namespace Uml.Robotics.Ros
                     {
                         Logger.LogDebug("Disconnecting from publisher [" + link.CallerID + "] of topic [" + name +
                                     "] at [" + link.XmlRpcUri + "]");
-                        link.drop();
+                        link.Drop();
                     }
                     else
                     {
@@ -586,5 +586,5 @@ namespace Uml.Robotics.Ros
             public RosMessage message;
             public TimeData receipt_time;
         }
-    }
+    }*/
 }

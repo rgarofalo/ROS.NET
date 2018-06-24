@@ -8,7 +8,7 @@ using System.Threading;
 
 namespace Uml.Robotics.Ros
 {
-    public class PollSet : PollSignal
+    /*public class PollSet : PollSignal
     {
         const int SELECT_TIMEOUT = 5 * 1000;    // poll thread select timeout in microseconds (interval checking for new sockets)
 
@@ -122,5 +122,5 @@ namespace Uml.Robotics.Ros
                 record._poll(newMask);
             }
         }
-    }
+    }*/
 }

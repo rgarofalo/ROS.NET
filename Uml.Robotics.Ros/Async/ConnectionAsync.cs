@@ -43,7 +43,7 @@ namespace Xamla.Robotics.Ros.Async
         public System.Net.Sockets.Socket Socket => client.Client;
 
         /// <summary>Returns the ID of the connection</summary>
-        public string CallerID
+        public string CallerId
         {
             get
             {
@@ -106,10 +106,7 @@ namespace Xamla.Robotics.Ros.Async
 
         public async Task WriteHeader(IDictionary<string, string> headerValues, CancellationToken cancel)
         {
-            //if (!transport.getRequiresHeader())
-            //    return;
-
-            header.Write(headerValues, out byte[] headerBuffer, out int headerLength);
+            Header.Write(headerValues, out byte[] headerBuffer, out int headerLength);
             int messageLength = (int)headerLength + 4;
 
             byte[] messageBuffer = new byte[messageLength];

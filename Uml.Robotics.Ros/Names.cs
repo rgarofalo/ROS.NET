@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace Uml.Robotics.Ros
 {
-    public class InvalidNameException : Exception
+    public class InvalidNameException : RosException
     {
         public InvalidNameException(string error)
             : base(error)
@@ -14,8 +13,8 @@ namespace Uml.Robotics.Ros
 
     public static class Names
     {
-        public static IDictionary<string, string> resolved_remappings = new Dictionary<string, string>();
-        public static IDictionary<string, string> unresolved_remappings = new Dictionary<string, string>();
+        public static IDictionary<string, string> resolvedRemappings = new Dictionary<string, string>();
+        public static IDictionary<string, string> unresolvedRemappings = new Dictionary<string, string>();
 
         public static bool IsValidCharInName(char c)
         {
@@ -91,6 +90,7 @@ namespace Uml.Robotics.Ros
                     return ns;
                 return Append("/", ns);
             }
+
             string copy = name;
             if (copy[0] == '~')
                 copy = Append(ThisNode.Name, copy.Substring(1));
@@ -103,16 +103,16 @@ namespace Uml.Robotics.Ros
 
         public static void Init(IDictionary<string, string> remappings)
         {
-            foreach (string k in remappings.Keys)
+            foreach (string key in remappings.Keys)
             {
-                string left = k;
-                string right = remappings[k];
+                string left = key;
+                string right = remappings[key];
                 if (left != "" && left[0] != '_')
                 {
-                    string resolved_left = Resolve(left, false);
-                    string resolved_right = Resolve(right, false);
-                    resolved_remappings[resolved_left] = resolved_right;
-                    unresolved_remappings[left] = right;
+                    string resolvedLeft = Resolve(left, false);
+                    string resolvedRight = Resolve(right, false);
+                    resolvedRemappings[resolvedLeft] = resolvedRight;
+                    unresolvedRemappings[left] = right;
                 }
             }
         }
@@ -129,13 +129,13 @@ namespace Uml.Robotics.Ros
             if (name.IndexOf('/') == name.Length - 1)
                 name = name.Substring(0, name.Length - 2);
 
-            int last_pos = name.LastIndexOf('/');
-            if (last_pos == -1)
+            int lastPos = name.LastIndexOf('/');
+            if (lastPos == -1)
                 return "";
-            if (last_pos == 0)
+            if (lastPos == 0)
                 return "/";
 
-            return name.Substring(0, last_pos);
+            return name.Substring(0, lastPos);
         }
     }
 }

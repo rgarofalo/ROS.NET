@@ -1,66 +1,71 @@
 ﻿using System;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
-    public class PublisherLink
+    public class HeaderErrorException
+        : RosException
     {
-        public class Stats
+        public HeaderErrorException(string message)
+            : base(message)
         {
-            public long bytesReceived;
-            public long drops;
-            public long messagesReceived;
+        }
+    }
+
+    internal abstract class PublisherLink
+        : IDisposable
+    {
+        public class PublisherStats
+        {
+            public long BytesReceived;
+            public long Drops;
+            public long MessagesReceived;
         }
 
-        public string CallerID = "";
-        public uint ConnectionID;
-        public bool Latched;
-        public readonly string XmlRpcUri = "";
         private Header header;
-        public string md5sum = "";
-        public readonly Subscription parent;
-        public Stats stats = new Stats();
 
-        public PublisherLink(Subscription parent, string xmlrpc_uri)
+        public uint ConnectionId;
+        public bool Latched;
+        public string Md5Sum = "";
+
+        public PublisherLink(SubscriptionAsync parent, string xmlrpcUri)
         {
-            this.parent = parent;
-            XmlRpcUri = xmlrpc_uri;
+            this.Parent = parent;
+            this.XmlRpcUri = xmlrpcUri;
         }
 
-        public virtual string TransportType
+        public string CallerId { get; private set; }
+        public SubscriptionAsync Parent { get; }
+        public string XmlRpcUri { get; }
+        public PublisherStats Stats { get; } = new PublisherStats();
+
+        public virtual string TransportType =>
+            "TCPROS";
+
+        public Header Header =>
+            header;
+
+        public void SetHeader(Header header)
         {
-            get { return "TCPROS"; }
+            if (!header.Values.ContainsKey("md5sum"))
+            {
+                throw new HeaderErrorException("Field 'md5sum' missing in connection header.");
+            }
+
+            if (!header.Values.ContainsKey("latching"))
+            {
+                throw new HeaderErrorException("Field 'latching' missing in connection header.");
+            }
+
+            this.CallerId = header.Values["callerid"];
+            this.Md5Sum = header.Values["md5sum"];
+            this.Latched = header.Values["latching"] == "1";
+            this.ConnectionId = ConnectionManager.Instance.GetNewConnectionId();
+            this.header = header;
+
+            Parent.HandleHeader(this, this.header);
         }
 
-        public Header getHeader()
-        {
-            return header;
-        }
-
-        public bool setHeader(Header h)
-        {
-            CallerID = (string) h.Values["callerid"];
-            if (!h.Values.ContainsKey("md5sum"))
-                return false;
-            md5sum = (string) h.Values["md5sum"];
-            Latched = false;
-            if (!h.Values.ContainsKey("latching"))
-                return false;
-            if ((string) h.Values["latching"] == "1")
-                Latched = true;
-            ConnectionID = ConnectionManager.Instance.GetNewConnectionId();
-            header = h;
-            parent.headerReceived(this, header);
-            return true;
-        }
-
-        internal virtual void handleMessage(byte[] serializedmessagekinda, bool ser, bool nocopy)
-        {
-            throw new NotImplementedException();
-        }
-
-        public virtual void drop()
-        {
-            throw new NotImplementedException();
-        }
+        public abstract void Dispose();
     }
 }

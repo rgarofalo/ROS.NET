@@ -211,7 +211,8 @@ namespace Xamla.Robotics.Ros.Async
             catch (Exception e)
             {
                 logger.LogDebug($"Service client for [{name}] dropped: {e.Message}");
-                                                                                                                    // cancel current call if any
+
+                // cancel current call if any
                 if (callQueue.Current != null)
                 {
                     callQueue.Current.Tcs.TrySetException(e);

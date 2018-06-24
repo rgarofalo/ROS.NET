@@ -1,26 +1,22 @@
 ﻿namespace Uml.Robotics.Ros
 {
-    public delegate void SubscriberStatusCallback(SingleSubscriberPublisher pub);
+    public delegate void SubscriberStatusCallback(SingleSubscriberPublisher publisher);
 
     public class SubscriberCallbacks
     {
-        public ICallbackQueue CallbackQueue;
-        public SubscriberStatusCallback connect;
-        public SubscriberStatusCallback disconnect;
+        public ICallbackQueue CallbackQueue { get; }
+        public SubscriberStatusCallback OnConnect { get; }
+        public SubscriberStatusCallback OnDisconnect { get; }
         public long CallbackId { get; set; } = -1;
 
-        public SubscriberCallbacks()
-        {
-        }
-
         public SubscriberCallbacks(
-            SubscriberStatusCallback connectCB,
-            SubscriberStatusCallback disconnectCB,
+            SubscriberStatusCallback onConnect,
+            SubscriberStatusCallback onDisconnect,
             ICallbackQueue callbackQueue
         )
         {
-            this.connect = connectCB;
-            this.disconnect = disconnectCB;
+            this.OnConnect = onConnect;
+            this.OnDisconnect = onDisconnect;
             this.CallbackQueue = callbackQueue;
         }
     }

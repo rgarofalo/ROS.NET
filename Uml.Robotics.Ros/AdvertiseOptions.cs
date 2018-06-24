@@ -4,7 +4,8 @@ using Messages;
 
 namespace Uml.Robotics.Ros
 {
-    public class AdvertiseOptions<T> where T : RosMessage, new()
+    public class AdvertiseOptions<T>
+        where T : RosMessage, new()
     {
         public readonly SubscriberStatusCallback connectCB;
         public readonly SubscriberStatusCallback disconnectCB;
@@ -15,7 +16,7 @@ namespace Uml.Robotics.Ros
         public readonly int queueSize;
 
         public string topic;
-        public bool latch;
+        public bool Latch;
         public ICallbackQueue callbackQueue;
 
         public AdvertiseOptions(string topic, int queueSize)

@@ -1,83 +1,95 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Uml.Robotics.Ros
 {
     public static class Service
     {
-        public static bool exists(string serviceName, bool logFailureReason = false)
+        public static async Task<bool> Exists(string serviceName, bool logFailureReason = false)
         {
             string mappedName = Names.Resolve(serviceName);
 
-            string host = "";
-            int port = 0;
+            string host;
+            int port;
 
-            if (ServiceManager.Instance.LookUpService(mappedName, ref host, ref port))
+            try
             {
-                var transport = new TcpTransport();
-                if (transport.connect(host, port))
+                (host, port) = await ServiceManager.Instance.LookupServiceAsync(mappedName);
+            }
+            catch
+            {
+                if (logFailureReason)
                 {
-                    var m = new Dictionary<string, string>
-                    {
-                        { "probe", "1" },
-                        { "md5sum", "*" },
-                        { "callerid", ThisNode.Name },
-                        { "service", mappedName }
-                    };
-
-                    var h = new Header();
-                    h.Write(m, out byte[] headerbuf, out int size);
-
-                    byte[] sizebuf = BitConverter.GetBytes(size);
-
-                    transport.write(sizebuf, 0, sizebuf.Length);
-                    transport.write(headerbuf, 0, size);
-
-                    return true;
+                    ROS.Info()("waitForService: Service[{0}] has not been advertised, waiting...", mappedName);
                 }
+                return false;
+            }
+
+            var transport = new TcpTransport();
+            if (!transport.connect(host, port))
+            {
                 if (logFailureReason)
                 {
                     ROS.Info()("waitForService: Service[{0}] could not connect to host [{1}:{2}], waiting...", mappedName, host, port);
                 }
+
+                return false;
             }
-            else if (logFailureReason)
+
+            var headerFields = new Dictionary<string, string>
             {
-                ROS.Info()("waitForService: Service[{0}] has not been advertised, waiting...", mappedName);
-            }
-            return false;
+                { "probe", "1" },
+                { "md5sum", "*" },
+                { "callerid", ThisNode.Name },
+                { "service", mappedName }
+            };
+
+            Header.Write(headerFields, out byte[] headerbuf, out int size);
+
+            byte[] sizebuf = BitConverter.GetBytes(size);
+
+            transport.write(sizebuf, 0, sizebuf.Length);
+            transport.write(headerbuf, 0, size);
+
+            return true;
         }
 
-        public static bool waitForService(string serviceName, TimeSpan timeout)
+        public static async Task<bool> WaitForService(string serviceName, TimeSpan timeout)
         {
-            string mapped_name = Names.Resolve(serviceName);
-            DateTime start_time = DateTime.UtcNow;
+            DateTime startTime = DateTime.UtcNow;
             bool printed = false;
-            while (ROS.ok)
+
+            while (ROS.OK)
             {
-                if (exists(serviceName, !printed))
+                if (await Exists(serviceName, !printed))
                 {
                     break;
                 }
+
                 printed = true;
+
                 if (timeout >= TimeSpan.Zero)
                 {
-                    if (DateTime.UtcNow.Subtract(start_time) > timeout)
+                    if (DateTime.UtcNow - startTime > timeout)
                         return false;
                 }
-                Thread.Sleep(ROS.WallDuration);
+
+                await Task.Delay(ROS.WallDuration);
             }
 
-            if (printed && ROS.ok)
+            if (printed && ROS.OK)
             {
-                ROS.Info()("waitForService: Service[{0}] is now available.", mapped_name);
+                string mappedName = Names.Resolve(serviceName);
+                ROS.Info()("waitForService: Service[{0}] is now available.", mappedName);
             }
             return true;
         }
 
-        public static bool waitForService(string service_name, int timeout)
+        public static Task<bool> WaitForService(string serviceName, int timeout)
         {
-            return waitForService(service_name, TimeSpan.FromMilliseconds(timeout));
+            return WaitForService(serviceName, TimeSpan.FromMilliseconds(timeout));
         }
     }
 }

@@ -7,39 +7,47 @@ namespace Uml.Robotics.Ros
         where MReq : RosMessage, new()
         where MRes : RosMessage, new();
 
-    public class ServiceCallbackHelperParams<MReq, MRes> : IServiceCallbackHelperParams
+    public class ServiceCallbackHelperParams<MReq, MRes>
+        : IServiceCallbackHelperParams
+        where MReq : RosMessage
+        where MRes : RosMessage
     {
-        public new MReq request;
-        public new MRes response;
+        public IDictionary<string, string> ConnectionHeader { get; } = new Dictionary<string, string>();
+        public MReq Request { get; set; }
+        public MRes Response { get; set; }
+
+        RosMessage IServiceCallbackHelperParams.Request => Request;
+        RosMessage IServiceCallbackHelperParams.Response => Response;
     }
 
-    public class IServiceCallbackHelperParams
+    public interface IServiceCallbackHelperParams
     {
-        public IDictionary<string, string> connection_header;
-        public RosMessage request, response;
+        IDictionary<string, string> ConnectionHeader { get; }
+        RosMessage Request { get; }
+        RosMessage Response { get; }
     }
 
     public class ServiceCallbackHelper<MReq, MRes> : IServiceCallbackHelper
         where MReq : RosMessage, new()
         where MRes : RosMessage, new()
     {
-        protected new ServiceFunction<MReq, MRes> _callback;
+        protected new ServiceFunction<MReq, MRes> callback;
 
         public ServiceCallbackHelper(ServiceFunction<MReq, MRes> srv_func)
         {
-            _callback = srv_func;
+            callback = srv_func;
         }
 
-        internal bool call(ServiceCallbackHelperParams<MReq, MRes> parms)
+        internal bool Call(ServiceCallbackHelperParams<MReq, MRes> parms)
         {
-            return _callback.Invoke(parms.request, ref parms.response);
+            return callback.Invoke(parms.Request, ref parms.Response);
         }
     }
 
     public class IServiceCallbackHelper
     {
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<IServiceCallbackHelper>();
-        protected ServiceFunction<RosMessage, RosMessage> _callback;
+        protected ServiceFunction<RosMessage, RosMessage> callback;
 
         public string type;
 
@@ -47,28 +55,30 @@ namespace Uml.Robotics.Ros
         {
         }
 
-        protected IServiceCallbackHelper(ServiceFunction<RosMessage, RosMessage> Callback)
+        protected IServiceCallbackHelper(ServiceFunction<RosMessage, RosMessage> callback)
         {
-            _callback = Callback;
+            this.callback = callback;
         }
 
-        public virtual ServiceFunction<RosMessage, RosMessage> callback()
+        public virtual ServiceFunction<RosMessage, RosMessage> Callback()
         {
-            return _callback;
+            return callback;
         }
 
-        public virtual ServiceFunction<RosMessage, RosMessage> callback(ServiceFunction<RosMessage, RosMessage> cb)
+        public virtual ServiceFunction<RosMessage, RosMessage> Callback(ServiceFunction<RosMessage, RosMessage> cb)
         {
-            _callback = cb;
-            return _callback;
+            callback = cb;
+            return callback;
         }
 
-        public virtual MReq deserialize<MReq, MRes>(ServiceCallbackHelperParams<MReq, MRes> parms) where MReq : RosMessage where MRes : RosMessage
+        public virtual MReq Deserialize<MReq, MRes>(ServiceCallbackHelperParams<MReq, MRes> parms)
+            where MReq : RosMessage
+            where MRes : RosMessage
         {
             RosMessage msg = RosMessage.Generate(type);
-            msg.connection_header = new Dictionary<string, string>(parms.connection_header);
+            msg.connection_header = new Dictionary<string, string>(parms.ConnectionHeader);
             MReq t = (MReq) msg;
-            t.Deserialize(parms.response.Serialized);
+            t.Deserialize(parms.Response.Serialized);
             return t;
         }
     }

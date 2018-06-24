@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
-    public class ServiceClient<MReq, MRes> : IServiceClient where MReq : RosMessage, new() where MRes : RosMessage, new()
+/*    public class ServiceClient<MReq, MRes> : IServiceClient where MReq : RosMessage, new() where MRes : RosMessage, new()
     {
         internal ServiceClient(string service, bool persistent, IDictionary<string, string> header_values, string md5sum)
         {
@@ -118,7 +118,7 @@ namespace Uml.Robotics.Ros
 
         protected bool postcall(bool retval)
         {
-            while (ROS.shuttingDown && ROS.ok)
+            while (ROS.shuttingDown && ROS.OK)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 0, 0, ROS.WallDuration));
             }
@@ -137,5 +137,5 @@ namespace Uml.Robotics.Ros
                 }
             }
         }
-    }
+    }*/
 }

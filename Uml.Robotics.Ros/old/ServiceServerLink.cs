@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
-    public class IServiceServerLink : IDisposable
+  /*  public class IServiceServerLink : IDisposable
     {
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<IServiceServerLink>();
         public bool IsValid;
@@ -419,7 +419,7 @@ namespace Uml.Robotics.Ros
             }
             catch(Exception ex)
             {
-                if (ROS.isStarted() && !ROS.shutting_down)
+                if (ROS.IsStarted() && !ROS.shutting_down)
                 {
                     throw;
                 }
@@ -442,5 +442,5 @@ namespace Uml.Robotics.Ros
         {
             finished_condition.Release();
         }
-    }
+    }*/
 }

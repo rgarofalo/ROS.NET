@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using Messages.rosgraph_msgs;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -13,12 +15,8 @@ namespace Uml.Robotics.Ros
     }
 
     public class RosOutAppender
+        : IDisposable
     {
-        public static RosOutAppender Instance
-        {
-            get { return instance.Value; }
-        }
-
         internal enum ROSOUT_LEVEL
         {
             DEBUG = 1,
@@ -29,54 +27,28 @@ namespace Uml.Robotics.Ros
         }
 
         private static Lazy<RosOutAppender> instance = new Lazy<RosOutAppender>(LazyThreadSafetyMode.ExecutionAndPublication);
-        private Queue<Log> log_queue = new Queue<Log>();
-        private Thread publish_thread;
-        private bool shutting_down;
-        private Publisher<Log> publisher;
 
+        public static RosOutAppender Instance =>
+            instance.Value;
 
-        internal static void Terminate()
-        {
-            Instance.Shutdown();
-        }
+        internal static void Terminate() =>
+            Instance.Dispose();
 
-
-        internal static void Reset()
-        {
+        internal static void Reset() =>
             instance = new Lazy<RosOutAppender>(LazyThreadSafetyMode.ExecutionAndPublication);
-        }
 
+        private AsyncQueue<Log> queue = new AsyncQueue<Log>(10000);
+        private Task publishLoop;
+        private Publisher<Log> publisher;
 
         public RosOutAppender()
         {
-            publish_thread = new Thread(LogThread) { IsBackground = true };
         }
 
-
-        public bool Started
+        public void Dispose()
         {
-            get { return publish_thread != null && (publish_thread.ThreadState == System.Threading.ThreadState.Running || publish_thread.ThreadState == System.Threading.ThreadState.Background); }
-        }
-
-
-        public void Start()
-        {
-            if (!shutting_down && !Started)
-            {
-                if (publisher == null)
-                    publisher = ROS.GlobalNodeHandle.advertise<Log>("/rosout", 0);
-                publish_thread.Start();
-            }
-        }
-
-
-        public void Shutdown()
-        {
-            shutting_down = true;
-            if(Started)
-            {
-                publish_thread.Join();
-            }
+            queue.OnCompleted();
+            publishLoop.Wait();
             if (publisher != null)
             {
                 publisher.shutdown();
@@ -84,6 +56,29 @@ namespace Uml.Robotics.Ros
             }
         }
 
+        public bool Started
+        {
+            get
+            {
+                lock (queue)
+                {
+                    return publishLoop != null && !publishLoop.IsCompleted && !queue.IsCompleted;
+                }
+            }
+        }
+
+        public void Start()
+        {
+            lock (queue)
+            {
+                if (!queue.IsCompleted && publishLoop == null)
+                {
+                    if (publisher == null)
+                        publisher = ROS.GlobalNodeHandle.Advertise<Log>("/rosout", 0);
+                    publishLoop = PublishLoopAsync();
+                }
+            }
+        }
 
         internal void Append(string message, ROSOUT_LEVEL level, CallerInfo callerInfo)
         {
@@ -94,32 +89,19 @@ namespace Uml.Robotics.Ros
                 file = callerInfo.FilePath,
                 function = callerInfo.MemberName,
                 line = (uint)callerInfo.LineNumber,
-                level = ((byte)((int)level)),
-                header = new Messages.std_msgs.Header() { stamp = ROS.GetTime() }
+                level = (byte)level,
+                header = new Messages.std_msgs.Header { stamp = ROS.GetTime() }
             };
             TopicManager.Instance.getAdvertisedTopics(out logMessage.topics);
-            lock (log_queue)
-                log_queue.Enqueue(logMessage);
+            queue.TryOnNext(logMessage);
         }
 
-
-        private void LogThread()
+        private async Task PublishLoopAsync()
         {
-            Queue<Log> localqueue;
-            while (!shutting_down)
+            while (!await queue.MoveNext(default(CancellationToken)))
             {
-                lock (log_queue)
-                {
-                    localqueue = new Queue<Log>(log_queue);
-                    log_queue.Clear();
-                }
-                while (!shutting_down && localqueue.Count > 0)
-                {
-                    publisher.publish(localqueue.Dequeue());
-                }
-                if (shutting_down)
-                    return;
-                Thread.Sleep(100);
+                Log entry = queue.Current;
+                publisher.publish(entry);
             }
         }
     }

@@ -1,15 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
-    public class LocalPublisherLink : PublisherLink
+    internal class LocalPublisherLink : PublisherLink
     {
         private object gate = new object();
         private bool dropped;
-        private LocalSubscriberLink publisher = null;
+        private LocalSubscriberLink publisher;
 
-        public LocalPublisherLink(Subscription parent, string xmlrpc_uri)
+        public LocalPublisherLink(SubscriptionAsync parent, string xmlrpc_uri)
             : base(parent, xmlrpc_uri)
         {
         }
@@ -19,21 +20,23 @@ namespace Uml.Robotics.Ros
             get { return "INTRAPROCESS"; }
         }
 
-        public void setPublisher(LocalSubscriberLink pub_link)
+        public void SetPublisher(LocalSubscriberLink pub_link)
         {
-            lock (parent)
+            lock (Parent)
             {
-                var header = new Dictionary<string, string>();
-                header["topic"] = parent.name;
-                header["md5sum"] = parent.md5sum;
-                header["callerid"] = ThisNode.Name;
-                header["type"] = parent.datatype;
-                header["tcp_nodelay"] = "1";
-                setHeader(new Header { Values = header });
+                var headerFields = new Dictionary<string, string>
+                {
+                    ["topic"] = Parent.Name,
+                    ["md5sum"] = Parent.Md5Sum,
+                    ["callerid"] = ThisNode.Name,
+                    ["type"] = Parent.DataType,
+                    ["tcp_nodelay"] = "1"
+                };
+                SetHeader(new Header(headerFields));
             }
         }
 
-        public override void drop()
+        public override void Dispose()
         {
             lock (gate)
             {
@@ -47,33 +50,33 @@ namespace Uml.Robotics.Ros
                 publisher.Drop();
             }
 
-            lock (parent)
+            lock (Parent)
             {
-                parent.removePublisherLink(this);
+                Parent.RemovePublisherLink(this);
             }
         }
 
-        public void handleMessage<T>(T m, bool ser, bool nocopy) where T : RosMessage, new()
+        public void HandleMessage<T>(T m, bool ser, bool nocopy) where T : RosMessage, new()
         {
-            stats.messagesReceived++;
+            Stats.MessagesReceived++;
             if (m.Serialized == null)
             {
                 // ignore stats to avoid an unnecessary allocation
             }
             else
             {
-                stats.bytesReceived += m.Serialized.Length;
+                Stats.BytesReceived += m.Serialized.Length;
             }
-            if (parent != null)
+            if (Parent != null)
             {
-                lock (parent)
+                lock (Parent)
                 {
-                    stats.drops += parent.handleMessage(m, ser, nocopy, m.connection_header, this);
+                    Stats.Drops += Parent.HandleMessage(m, ser, nocopy, m.connection_header, this);
                 }
             }
         }
 
-        public void getPublishTypes(ref bool ser, ref bool nocopy, string messageType)
+        public void GetPublishTypes(ref bool ser, ref bool nocopy, string messageType)
         {
             lock (gate)
             {
@@ -84,11 +87,11 @@ namespace Uml.Robotics.Ros
                     return;
                 }
             }
-            if (parent != null)
+            if (Parent != null)
             {
-                lock (parent)
+                lock (Parent)
                 {
-                    parent.getPublishTypes(ref ser, ref nocopy, messageType);
+                    Parent.GetPublishTypes(ref ser, ref nocopy, messageType);
                 }
             }
             else

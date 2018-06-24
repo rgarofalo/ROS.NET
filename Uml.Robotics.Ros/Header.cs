@@ -8,8 +8,19 @@ namespace Uml.Robotics.Ros
 {
     public class Header
     {
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<Header>();
-        public IDictionary<string, string> Values = new Dictionary<string, string>();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<Header>();
+        private readonly IDictionary<string, string> values = new Dictionary<string, string>();
+
+        public IDictionary<string, string> Values => values;
+
+        public Header()
+        {
+        }
+
+        public Header(IDictionary<string, string> values)
+        {
+            this.values = values;
+        }
 
         public bool Parse(byte[] buffer, int size, out string errorMsg)
         {
@@ -27,14 +38,14 @@ namespace Uml.Robotics.Ros
                     i += length;
                     continue;
                 }
-                Values[chunks[0].Trim()] = chunks[1].Trim();
+                values[chunks[0].Trim()] = chunks[1].Trim();
                 i += length;
             }
 
             if (i != size)
             {
                 errorMsg = "Could not parse connection header.";
-                Logger.LogWarning(errorMsg);
+                logger.LogWarning(errorMsg);
                 return false;
             }
 
@@ -42,15 +53,15 @@ namespace Uml.Robotics.Ros
             return true;
         }
 
-        public void Write(IDictionary<string, string> dict, out byte[] buffer, out int totallength)
+        public static void Write(IDictionary<string, string> fields, out byte[] buffer, out int totalLength)
         {
             var ms = new MemoryStream();
             using (var writer = new BinaryWriter(ms, Encoding.ASCII))
             {
-                foreach (string k in dict.Keys)
+                foreach (string k in fields.Keys)
                 {
                     byte[] key = Encoding.ASCII.GetBytes(k);
-                    byte[] val = Encoding.ASCII.GetBytes(dict[k]);
+                    byte[] val = Encoding.ASCII.GetBytes(fields[k]);
                     int lineLength = val.Length + key.Length + 1;
 
                     writer.Write(lineLength);
@@ -63,17 +74,13 @@ namespace Uml.Robotics.Ros
             ms.TryGetBuffer(out ArraySegment<byte> result);
             buffer = new byte[result.Count];
             Array.Copy(result.Array, result.Offset, buffer, 0, result.Count);
-            totallength = result.Count;
+            totalLength = result.Count;
         }
 
-        public static byte[] ByteLength(int num)
-        {
-            return ByteLength((uint) num);
-        }
+        public static byte[] ByteLength(int num) =>
+            BitConverter.GetBytes(num);
 
-        public static byte[] ByteLength(uint num)
-        {
-            return BitConverter.GetBytes(num);
-        }
+        public static byte[] ByteLength(uint num) =>
+            BitConverter.GetBytes(num);
     }
 }

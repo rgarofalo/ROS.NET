@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -109,15 +110,14 @@ namespace Uml.Robotics.Ros
             conn.initialize(transport, true, OnConnectionHeaderReceived);
         }
 
-
-        public bool OnConnectionHeaderReceived(Connection conn, Header header)
+        public bool OnConnectionHeaderReceived(ConnectionAsync conn, Header header)
         {
             bool ret = false;
             if (header.Values.ContainsKey("topic"))
             {
-                TransportSubscriberLink sub_link = new TransportSubscriberLink();
-                ret = sub_link.Initialize(conn);
-                ret &= sub_link.HandleHeader(header);
+                TransportSubscriberLink subscriperLink = new TransportSubscriberLink();
+                ret = subscriperLink.Initialize(conn);
+                ret &= subscriperLink.HandleHeader(header);
             }
             else if (header.Values.ContainsKey("service"))
             {

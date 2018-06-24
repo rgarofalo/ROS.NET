@@ -11,8 +11,8 @@ public class RosException: Exception
     {
     }
 
-    public RosException(string message, Exception inner)
-        : base(message, inner)
+    public RosException(string message, Exception innerException)
+        : base(message, innerException)
     {
     }
 }

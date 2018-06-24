@@ -7,9 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
-
-
-    public class Connection
+    /*public class Connection
     {
         public enum DropReason
         {
@@ -419,5 +417,5 @@ namespace Uml.Robotics.Ros
 
     public delegate bool WriteFinishedFunc(Connection connection);
 
-    public delegate bool ReadFinishedFunc(Connection connection, byte[] data, int size, bool success);
+    public delegate bool ReadFinishedFunc(Connection connection, byte[] data, int size, bool success);*/
 }

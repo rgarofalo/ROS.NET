@@ -8,7 +8,7 @@ using Uml.Robotics.XmlRpc;
 
 namespace Uml.Robotics.Ros
 {
-    public class TopicManager
+  /*  public class TopicManager
     {
         public delegate byte[] SerializeFunc();
 
@@ -236,7 +236,7 @@ namespace Uml.Robotics.Ros
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
 
-            if (!Master.execute("registerPublisher", args, result, payload, true))
+            if (!Master.Execute("registerPublisher", args, result, payload, true))
             {
                 this.Logger.LogError("RPC \"registerService\" for service " + ops.topic + " failed.");
                 return false;
@@ -367,7 +367,7 @@ namespace Uml.Robotics.Ros
                 p.connection_header.Values["latching"] = Convert.ToString(p.Latch);
             }
 
-            if (!ROS.ok || shuttingDown)
+            if (!ROS.Ok || shuttingDown)
                 return;
 
             if (p.HasSubscribers || p.Latch)
@@ -478,7 +478,7 @@ namespace Uml.Robotics.Ros
 
                 if (proto_name == "TCPROS")
                 {
-                    var tcpRosParams = new XmlRpcValue("TCPROS", Network.host, ConnectionManager.Instance.TCPPort);
+                    var tcpRosParams = new XmlRpcValue("TCPROS", Network.Host, ConnectionManager.Instance.TCPPort);
                     ret.Set(0, 1);
                     ret.Set(1, "");
                     ret.Set(2, tcpRosParams);
@@ -512,7 +512,7 @@ namespace Uml.Robotics.Ros
             var args = new XmlRpcValue(ThisNode.Name, s.name, datatype, uri);
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
-            if (!Master.execute("registerSubscriber", args, result, payload, true))
+            if (!Master.Execute("registerSubscriber", args, result, payload, true))
             {
                 Logger.LogError("RPC \"registerSubscriber\" for service " + s.name + " failed.");
                 return false;
@@ -560,12 +560,11 @@ namespace Uml.Robotics.Ros
             bool unregisterSuccess = false;
             try
             {
-                unregisterSuccess = Master.execute("unregisterSubscriber", args, result, payload, false) && result.IsEmpty;
+                unregisterSuccess = Master.Execute("unregisterSubscriber", args, result, payload, false) && result.IsEmpty;
             }
-            // Ignore exception during unregister
-            catch (Exception e)
+            catch
             {
-                // Logger.LogError(e.Message);
+                // Ignore exception during unregister
             }
             return unregisterSuccess;
         }
@@ -580,12 +579,11 @@ namespace Uml.Robotics.Ros
             bool unregisterSuccess = false;
             try
             {
-                unregisterSuccess = Master.execute("unregisterPublisher", args, result, payload, false) && result.IsEmpty;
+                unregisterSuccess = Master.Execute("unregisterPublisher", args, result, payload, false) && result.IsEmpty;
             }
-            // Ignore exception during unregister
-            catch (Exception e)
+            catch
             {
-                // Logger.LogError(e.Message);
+                // Ignore exception during unregister
             }
             return unregisterSuccess;
         }
@@ -814,5 +812,5 @@ namespace Uml.Robotics.Ros
             }
             return true;
         }
-    }
+    }*/
 }

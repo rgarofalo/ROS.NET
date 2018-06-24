@@ -9,33 +9,16 @@ namespace Uml.Robotics.Ros
 {
     public class XmlRpcManager : IDisposable
     {
-        public static XmlRpcManager Instance
-        {
-            get { return instance.Value; }
-        }
-
-        internal static void Terminate()
-        {
-            XmlRpcManager.Instance.Shutdown();
-        }
-
-        internal static void Reset()
-        {
-            instance = new Lazy<XmlRpcManager>(LazyThreadSafetyMode.ExecutionAndPublication);
-        }
-
         private static Lazy<XmlRpcManager> instance = new Lazy<XmlRpcManager>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<XmlRpcManager>();
-        private Dictionary<string, XmlRpcServerMethod> functions = new Dictionary<string, XmlRpcServerMethod>();
-        private object functionsGate = new object();
-        private XmlRpcFunc getPid;
-        private XmlRpcServer server;
-        private Thread serverThread;
-        private bool shuttingDown;
-        private string uri = "";
-        private int port;
+        public static XmlRpcManager Instance =>
+            instance.Value;
 
+        internal static void Terminate() =>
+            XmlRpcManager.Instance.Dispose();
+
+        internal static void Reset() =>
+            instance = new Lazy<XmlRpcManager>(LazyThreadSafetyMode.ExecutionAndPublication);
 
         public static Action<XmlRpcValue> ResponseStr(IntPtr target, int code, string msg, string response)
         {
@@ -47,7 +30,6 @@ namespace Uml.Robotics.Ros
             };
         }
 
-
         public static Action<XmlRpcValue> ResponseInt(int code, string msg, int response)
         {
             return (XmlRpcValue v) =>
@@ -57,7 +39,6 @@ namespace Uml.Robotics.Ros
                 v.Set(2, response);
             };
         }
-
 
         public static Action<XmlRpcValue> ResponseBool(int code, string msg, bool response)
         {
@@ -69,48 +50,64 @@ namespace Uml.Robotics.Ros
             };
         }
 
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<XmlRpcManager>();
+        private readonly object gate = new object();
+        private Dictionary<string, XmlRpcServerMethod> functions = new Dictionary<string, XmlRpcServerMethod>();
+        private XmlRpcFunc getPid;
+        private XmlRpcServer server;
+        private Thread serverThread;
+        private bool disposed;
+        private string uri = "";
+        private int port;
 
-        public XmlRpcManager()
+        private XmlRpcManager()
         {
             this.server = new XmlRpcServer();
             this.getPid = (parms, result) => ResponseInt(1, "", Process.GetCurrentProcess().Id)(result);
         }
-
 
         public string Uri
         {
             get { return uri; }
         }
 
-
         public bool IsShuttingDown
         {
-            get { return shuttingDown; }
+            get { return disposed; }
         }
-
 
         public void Dispose()
         {
-            Shutdown();
-        }
+            if (disposed)
+                return;
 
+            disposed = true;
+            serverThread.Join();
+            server.Shutdown();
+
+            lock (gate)
+            {
+                functions.Clear();
+            }
+
+            logger.LogDebug("XmlRpc Server shut down.");
+        }
 
         private void ServerThreadFunc()
         {
-            while (!shuttingDown)
+            while (!disposed)
             {
                 if (server.Dispatch == null)
                 {
                     throw new NullReferenceException("XmlRpcManager is not initialized yet!");
                 }
 
-                lock (functionsGate)
+                lock (gate)
                 {
                     server.Work(TimeSpan.FromMilliseconds(1));
                 }
             }
         }
-
 
         public bool ValidateXmlRpcResponse(string method, XmlRpcValue response, XmlRpcValue payload)
         {
@@ -155,17 +152,15 @@ namespace Uml.Robotics.Ros
             return true;
         }
 
-
         private bool ValidateFailed(string method, string errorFormat, params object[] args)
         {
-            Logger.LogDebug("XML-RPC Call [{0}] {1} failed validation", method, string.Format(errorFormat, args));
+            logger.LogDebug("XML-RPC Call [{0}] {1} failed validation", method, string.Format(errorFormat, args));
             return false;
         }
 
-
         public bool Bind(string functionName, XmlRpcFunc callback)
         {
-            lock (functionsGate)
+            lock (gate)
             {
                 if (functions.ContainsKey(functionName))
                     return false;
@@ -178,15 +173,13 @@ namespace Uml.Robotics.Ros
             return true;
         }
 
-
         public void Unbind(string functionName)
         {
-            lock (functionsGate)
+            lock (gate)
             {
                 functions.Remove(functionName);
             }
         }
-
 
         /// <summary>
         /// This function starts the XmlRpcServer used to handle inbound calls on this node
@@ -195,7 +188,7 @@ namespace Uml.Robotics.Ros
         /// Doing so should only be done when acting as the RosMaster.</param>
         public void Start(int port = 0)
         {
-            shuttingDown = false;
+            disposed = false;
 
             Bind("getPid", getPid);
 
@@ -203,12 +196,14 @@ namespace Uml.Robotics.Ros
             // and we don't know our port until we're bound and listening
             bool bound = server.BindAndListen(port);
             if (!bound)
+            {
                 throw new Exception("RPCServer bind failed");
+            }
 
             if (port == 0)
             {
                 this.port = server.Port;     // get bind result
-                this.uri = "http://" + Network.host + ":" + this.port + "/";
+                this.uri = "http://" + Network.Host + ":" + this.port + "/";
             }
             else
             {
@@ -216,27 +211,9 @@ namespace Uml.Robotics.Ros
                 this.uri = ROS.ROS_MASTER_URI;       // if port is not 0 we are be the master
             }
 
-            Logger.LogInformation("XmlRpc Server listening at " + uri);
+            logger.LogInformation("XmlRpc Server listening at " + uri);
             serverThread = new Thread(ServerThreadFunc) { IsBackground = true };
             serverThread.Start();
-        }
-
-
-        internal void Shutdown()
-        {
-            if (shuttingDown)
-                return;
-
-            shuttingDown = true;
-            serverThread.Join();
-            server.Shutdown();
-
-            lock (functionsGate)
-            {
-                functions.Clear();
-            }
-
-            Logger.LogDebug("XmlRpc Server shutted down.");
         }
     }
 }

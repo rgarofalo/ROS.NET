@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
 {
-    public class PollSignal : IDisposable
+    /*public class PollSignal : IDisposable
     {
         public MethodInfo Method;
         public object Target;
@@ -86,10 +86,10 @@ namespace Uml.Robotics.Ros
 
         private void ThreadFunc()
         {
-            while (ROS.ok && !disposed)
+            while (ROS.OK && !disposed)
             {
                 resetEvent.WaitOne();
-                if (ROS.ok && !disposed)
+                if (ROS.OK && !disposed)
                     Op();
             }
             thread = null;
@@ -217,5 +217,5 @@ namespace Uml.Robotics.Ros
                 thread = null;
             }
         }
-    }
+    }*/
 }

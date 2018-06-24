@@ -15,37 +15,31 @@ namespace Uml.Robotics.XmlRpc
             WritableEvent = 2,
             Exception = 4
         }
-
         private class DispatchRecord
         {
             public XmlRpcSource Client { get; set; }
             public EventType Mask { get; set; }
         }
 
-
         private List<DispatchRecord> sources = new List<DispatchRecord>();
-
 
         public void AddSource(XmlRpcSource source, EventType eventMask)
         {
             sources.Add(new DispatchRecord { Client = source, Mask = eventMask });
         }
 
-
         public void RemoveSource(XmlRpcSource source)
         {
             sources.RemoveAll(x => x.Client == source);
         }
 
-
         public void SetSourceEvents(XmlRpcSource source, EventType eventMask)
         {
             foreach (var record in sources.Where(x => x.Client == source))
             {
-                record.Mask |= eventMask;   
+                record.Mask |= eventMask;
             }
         }
-
 
         private void CheckSources(IEnumerable<DispatchRecord> sources, TimeSpan timeout, List<XmlRpcSource> toRemove)
         {
@@ -57,7 +51,7 @@ namespace Uml.Robotics.XmlRpc
 
             foreach (var src in sources)
             {
-                var sock = src.Client.getSocket();
+                var sock = src.Client.Socket;
                 if (sock == null)
                     continue;
 
@@ -81,7 +75,7 @@ namespace Uml.Robotics.XmlRpc
             {
                 XmlRpcSource src = record.Client;
                 EventType newMask = ALL_EVENTS;
-                Socket sock = src.getSocket();
+                Socket sock = src.Socket;
                 if (sock == null)
                     continue;
 
@@ -103,7 +97,6 @@ namespace Uml.Robotics.XmlRpc
                 }
             }
         }
-
 
         public void Work(TimeSpan timeSlice)
         {
@@ -127,7 +120,6 @@ namespace Uml.Robotics.XmlRpc
                     break;
             }
         }
-
 
         public void Clear()
         {

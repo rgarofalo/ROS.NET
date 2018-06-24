@@ -30,7 +30,7 @@ namespace Uml.Robotics.Ros
             }
 
             if (subscriber != null)
-                subscriber.handleMessage(holder.msg, holder.serialize, holder.nocopy);
+                subscriber.HandleMessage(holder.msg, holder.serialize, holder.nocopy);
         }
 
         public override void Drop()
@@ -44,16 +44,16 @@ namespace Uml.Robotics.Ros
 
             if (subscriber != null)
             {
-                subscriber.drop();
+                subscriber.Drop();
             }
 
             lock (parent)
             {
-                parent.removeSubscriberLink(this);
+                parent.RemoveSubscriberLink(this);
             }
         }
 
-        public override void getPublishTypes(ref bool ser, ref bool nocopy, string messageType)
+        public override void GetPublishTypes(ref bool ser, ref bool nocopy, string messageType)
         {
             lock (gate)
             {
@@ -65,7 +65,7 @@ namespace Uml.Robotics.Ros
                 }
             }
 
-            subscriber.getPublishTypes(ref ser, ref nocopy, messageType);
+            subscriber.GetPublishTypes(ref ser, ref nocopy, messageType);
         }
     }
 }
