@@ -165,7 +165,8 @@ namespace Uml.Robotics.Ros
 
         public override void GetPublishTypes(ref bool ser, ref bool nocopy, string type_info)
         {
-            throw new NotImplementedException();
+            ser = true;
+            nocopy = false;
         }
     }
 }

@@ -29,6 +29,7 @@ namespace Uml.Robotics.Ros
 
         private List<Connection> connections = new List<Connection>();
         private TcpListener listener;
+        private Task acceptLoop;
         private CancellationTokenSource cts;
         private CancellationToken cancel;
 
@@ -122,9 +123,12 @@ namespace Uml.Robotics.Ros
         {
             while (listener != null)
             {
+                cancel.ThrowIfCancellationRequested();
+
                 var tcpClient = await listener.AcceptTcpClientAsync();
                 var connection = new Connection(tcpClient);
                 AddConnection(connection);
+                var t = StartReadHeader(connection);
             }
         }
 
@@ -132,6 +136,7 @@ namespace Uml.Robotics.Ros
         {
             listener = new TcpListener(IPAddress.Any, Network.TcpRosServerPort);
             listener.Start(16);
+            acceptLoop = CheckAndAccept();
         }
 
         private void Connection_Disposed(Connection connection)
