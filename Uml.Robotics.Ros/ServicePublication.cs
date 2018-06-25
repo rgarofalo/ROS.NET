@@ -11,29 +11,26 @@ namespace Uml.Robotics.Ros
     {
         public ServiceCallbackHelper<MReq, MRes> helper;
 
-        public ServicePublication(string name, string md5Sum, string datatype, string reqDatatype, string resDatatype, ServiceCallbackHelper<MReq, MRes> helper, ICallbackQueue callback, object trackedObject)
+        public ServicePublication(string name, string md5Sum, string datatype, string reqDatatype, string resDatatype, ServiceCallbackHelper<MReq, MRes> helper, ICallbackQueue callback)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentNullException(nameof(name));
 
             this.name = name;
             this.md5sum = md5Sum;
-            this.datatype = datatype;
+            this.dataType = datatype;
             this.req_datatype = reqDatatype;
             this.res_datatype = resDatatype;
             this.helper = helper;
             this.callback = callback;
-            this.tracked_object = trackedObject;
-
-            if (trackedObject != null)
-                has_tracked_object = true;
         }
 
-        public override Task ProcessRequest(byte[] buf, int num_bytes, IServiceClientLink link)
+        public override Task<(RosMessage, bool)> ProcessRequest(byte[] buf, IServiceClientLink link)
         {
-            var cb = new ServiceCallback(this, helper, buf, num_bytes, link, has_tracked_object, tracked_object);
+            var cb = new ServiceCallback(this, helper, buf, link);
             this.callbackId = cb.Uid;
             callback.AddCallback(cb);
+            return cb.ResultTask;
         }
 
         internal override void AddServiceClientLink(IServiceClientLink iServiceClientLink)
@@ -54,58 +51,56 @@ namespace Uml.Robotics.Ros
 
         public class ServiceCallback : CallbackInterface
         {
-            private ILogger Logger { get; } = ApplicationLogging.CreateLogger<ServiceCallback>();
-            private bool _hasTrackedObject;
-            private int _numBytes;
-            private object _trackedObject;
-            private byte[] buffer;
+            private readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceCallback>();
+            private readonly byte[] buffer;
             private ServicePublication<MReq, MRes> isp;
             private IServiceClientLink link;
+            private TaskCompletionSource<(RosMessage, bool)> resultTask = new TaskCompletionSource<(RosMessage, bool)>();
 
-            public ServiceCallback(ServiceCallbackHelper<MReq, MRes> _helper, byte[] buf, int num_bytes, IServiceClientLink link, bool has_tracked_object, object tracked_object)
-                : this(null, _helper, buf, num_bytes, link, has_tracked_object, tracked_object)
+            public ServiceCallback(ServiceCallbackHelper<MReq, MRes> _helper, byte[] buf, IServiceClientLink link)
+                : this(null, _helper, buf, link)
             {
             }
 
-            public ServiceCallback(ServicePublication<MReq, MRes> sp, ServiceCallbackHelper<MReq, MRes> _helper, byte[] buf, int num_bytes, IServiceClientLink link, bool has_tracked_object, object tracked_object)
+            public ServiceCallback(ServicePublication<MReq, MRes> sp, ServiceCallbackHelper<MReq, MRes> _helper, byte[] buf, IServiceClientLink link)
             {
                 this.isp = sp;
                 if (this.isp != null && _helper != null)
                     this.isp.helper = _helper;
                 this.buffer = buf;
-                this._numBytes = num_bytes;
                 this.link = link;
-                this._hasTrackedObject = has_tracked_object;
-                this._trackedObject = tracked_object;
             }
+
+            public Task<(RosMessage, bool)> ResultTask =>
+                resultTask.Task;
 
             internal override CallResult Call()
             {
                 if (!link.Connection.IsValid)
                 {
+                    resultTask.SetCanceled();
                     return CallResult.Invalid;
                 }
-
-                ServiceCallbackHelperParams<MReq, MRes> parms = new ServiceCallbackHelperParams<MReq, MRes>
-                {
-                    Request = new MReq(),
-                    Response = new MRes(),
-                    ConnectionHeader = link.Connection.Header.Values
-                };
-                parms.Request.Deserialize(buffer);
 
                 try
                 {
+                    ServiceCallbackHelperParams<MReq, MRes> parms = new ServiceCallbackHelperParams<MReq, MRes>
+                    {
+                        Request = new MReq(),
+                        Response = new MRes(),
+                        ConnectionHeader = link.Connection.Header.Values
+                    };
+
+                    parms.Request.Deserialize(buffer);
                     bool ok = isp.helper.Call(parms);
-                    link.ProcessResponse(parms.Response, ok);
+                    resultTask.SetResult((parms.Response, ok));
                 }
                 catch (Exception e)
                 {
-                    string str = "Exception thrown while processing service call: " + e;
-                    ROS.Error()(str);
-                    link.ProcessResponse(str, false);
+                    resultTask.TrySetException(e);
                     return CallResult.Invalid;
                 }
+
                 return CallResult.Success;
             }
 
@@ -123,18 +118,17 @@ namespace Uml.Robotics.Ros
 
     public abstract class IServicePublication
     {
-        internal ICallbackQueue callback;
-        internal List<IServiceClientLink> clientLinks = new List<IServiceClientLink>();
+        protected ICallbackQueue callback;
+        protected List<IServiceClientLink> clientLinks = new List<IServiceClientLink>();
         protected object gate = new object();
         protected long callbackId = -1;
-        internal string datatype;
-        internal bool has_tracked_object;
+
+        internal string dataType;
         internal bool isDropped;
         internal string md5sum;
         internal string name;
         internal string req_datatype;
         internal string res_datatype;
-        internal object tracked_object;
 
         internal void Drop()
         {
@@ -164,8 +158,8 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        internal abstract void AddServiceClientLink(IServiceClientLink iServiceClientLink);
-        internal abstract void RemoveServiceClientLink(IServiceClientLink iServiceClientLink);
-        public abstract Task ProcessRequest(byte[] buffer, int size, IServiceClientLink iServiceClientLink);
+        internal abstract void AddServiceClientLink(IServiceClientLink serviceClientLink);
+        internal abstract void RemoveServiceClientLink(IServiceClientLink serviceClientLink);
+        public abstract Task<(RosMessage, bool)> ProcessRequest(byte[] buffer, IServiceClientLink serviceClientLink);
     }
 }

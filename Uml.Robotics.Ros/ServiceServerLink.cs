@@ -5,7 +5,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Uml.Robotics.Ros;
 using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
@@ -27,7 +26,7 @@ namespace Uml.Robotics.Ros
         private readonly ILogger logger = ApplicationLogging.CreateLogger<ServiceServerLink>();
 
         private Connection connection;
-        private AsyncQueue<CallInfo> callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
+        private AsyncQueue<CallInfo> callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH, true);
 
         private readonly string name;
         private readonly bool persistent;
@@ -71,6 +70,7 @@ namespace Uml.Robotics.Ros
         public string RequestType { get; private set; }
         public string ResponseMd5Sum { get; private set; }
         public string ResponseType { get; private set; }
+        public string ServiceMd5Sum { get; private set; }
 
         public void Dispose()
         {
@@ -87,6 +87,7 @@ namespace Uml.Robotics.Ros
             ResponseMd5Sum = srv.ResponseMessage.MD5Sum();
             RequestType = srv.RequestMessage.MessageType;
             ResponseType = srv.ResponseMessage.MessageType;
+            ServiceMd5Sum = srv.MD5Sum();
 
             this.connectionTask = HandleConnection();
         }
@@ -136,7 +137,10 @@ namespace Uml.Robotics.Ros
                 throw new ConnectionError(errorMessage);
             }
 
-            // TODO check md5sum
+            if (!string.IsNullOrEmpty(ServiceMd5Sum))
+            {
+                // TODO check md5sum
+            }
 
             return remoteHeader;
         }
@@ -154,8 +158,8 @@ namespace Uml.Robotics.Ros
             // serialize and send request
             request.Serialized = request.Serialize();
 
-            await connection.Write(BitConverter.GetBytes(request.Serialized.Length), 0, 4, cancel);
-            await connection.Write(request.Serialized, 0, request.Serialized.Length, cancel);
+            await connection.WriteBlock(BitConverter.GetBytes(request.Serialized.Length), 0, 4, cancel);
+            await connection.WriteBlock(request.Serialized, 0, request.Serialized.Length, cancel);
 
             // read response header
             var receiveBuffer = await connection.ReadBlock(5, cancel);
@@ -242,7 +246,7 @@ namespace Uml.Robotics.Ros
                 call.Tcs.TrySetException(e);
             }
 
-            callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH);
+            callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH, true);
         }
 
         public async Task<bool> Call(RosService srv)

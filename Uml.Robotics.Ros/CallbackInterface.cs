@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 
 namespace Uml.Robotics.Ros
@@ -12,18 +13,18 @@ namespace Uml.Robotics.Ros
 
         private readonly bool allow_concurrent_callbacks;
         private readonly Queue<Item> queue = new Queue<Item>();
-        private int size;
+        private int queueSize;
 
         public static Callback Create<M>(CallbackDelegate<M> f) where M : RosMessage, new()
         {
             return new Callback(msg => f(msg as M));
         }
 
-        public Callback(CallbackDelegate f, string topic, int queue_size, bool allow_concurrent_callbacks)
+        public Callback(CallbackDelegate f, string topic, int queueSize, bool allowConcurrentCallbacks)
             : this(f)
         {
-            this.allow_concurrent_callbacks = allow_concurrent_callbacks;
-            size = queue_size;
+            this.allow_concurrent_callbacks = allowConcurrentCallbacks;
+            this.queueSize = queueSize;
         }
 
         public Callback(CallbackDelegate f)
@@ -41,12 +42,12 @@ namespace Uml.Robotics.Ros
                 helper = helper,
                 message = message,
                 nonconst_need_copy = nonconst_need_copy,
-                receipt_time = receipt_time
+                receiptTime = receipt_time
             };
 
             lock (queue)
             {
-                if (fullNoLock())
+                if (this.IsFullNoLock)
                 {
                     queue.Dequeue();
                     was_full = true;
@@ -65,16 +66,17 @@ namespace Uml.Robotics.Ros
             return true;
         }
 
-        private bool fullNoLock()
-        {
-            return size > 0 && queue.Count >= size;
-        }
+        private bool IsFullNoLock =>
+            queueSize > 0 && queue.Count >= queueSize;
 
-        public bool full()
+        public bool IsFull
         {
-            lock (queue)
+            get
             {
-                return fullNoLock();
+                lock (queue)
+                {
+                    return this.IsFullNoLock;
+                }
             }
         }
 
@@ -83,7 +85,7 @@ namespace Uml.Robotics.Ros
             public ISubscriptionCallbackHelper helper;
             public RosMessage message;
             public bool nonconst_need_copy;
-            public TimeData receipt_time;
+            public TimeData receiptTime;
         }
 
         internal override CallResult Call()
@@ -111,11 +113,8 @@ namespace Uml.Robotics.Ros
     public abstract class CallbackInterface
     {
         private static long nextId = 0;
-
-        public static long NewUniqueId()
-        {
-            return System.Threading.Interlocked.Increment(ref nextId);
-        }
+        private static long NewUniqueId() =>
+            Interlocked.Increment(ref nextId);
 
         public long Uid { get; }
         public delegate void CallbackDelegate(RosMessage msg);

@@ -17,7 +17,6 @@ namespace Uml.Robotics.Ros
         public string service = "";
         public ServiceFunction<MReq, MRes> srv_func;
         public string SrvType;
-        public object tracked_object;
 
         public AdvertiseServiceOptions(string service, ServiceFunction<MReq, MRes> serviceCallback)
         {

@@ -3,14 +3,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
-    public class ConnectionError : Exception
+    public class ConnectionError : RosException
     {
         public ConnectionError(string message)
             : base(message)
@@ -71,10 +70,7 @@ namespace Uml.Robotics.Ros
 
         public async Task<IDictionary<string, string>> ReadHeader(CancellationToken cancel)
         {
-            var lengthBuffer = new byte[4];
-            await this.ReadBlock(lengthBuffer, cancel);
-            int length = BitConverter.ToInt32(lengthBuffer, 0);
-
+            int length = await this.ReadInt32(cancel);
             if (length > MESSAGE_SIZE_LIMIT)
                 throw new ConnectionError("Invalid header length received");
 
@@ -127,8 +123,13 @@ namespace Uml.Robotics.Ros
             byte[] messageBuffer = new byte[messageLength];
             Buffer.BlockCopy(BitConverter.GetBytes(headerLength), 0, messageBuffer, 0, 4);
             Buffer.BlockCopy(headerBuffer, 0, messageBuffer, 4, headerBuffer.Length);
-
             await Stream.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancel);
+        }
+
+        public async Task<int> ReadInt32(CancellationToken cancel)
+        {
+            byte[] lengthBuffer = await ReadBlock(4, cancel);
+            return BitConverter.ToInt32(lengthBuffer, 0);
         }
 
         public async Task<byte[]> ReadBlock(int size, CancellationToken cancel)
@@ -140,15 +141,26 @@ namespace Uml.Robotics.Ros
 
         public async Task ReadBlock(ArraySegment<byte> buffer, CancellationToken cancel)
         {
-            if (!await Stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel))
+            using (cancel.Register(() => Stream.Close()))
             {
-                throw new EndOfStreamException("Connection closed gracefully");
+                if (!await Stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel))
+                {
+                    throw new EndOfStreamException("Connection closed gracefully");
+                }
             }
         }
 
-        public async Task Write(byte[] buffer, int offset, int count, CancellationToken cancel)
+        public async Task WriteBlock(ArraySegment<byte> buffer, CancellationToken cancel)
         {
-            await Stream.WriteAsync(buffer, offset, count, cancel);
+            await WriteBlock(buffer.Array, buffer.Offset, buffer.Count, cancel);
+        }
+
+        public async Task WriteBlock(byte[] buffer, int offset, int count, CancellationToken cancel)
+        {
+            using (cancel.Register(() => Stream.Close()))
+            {
+                await Stream.WriteAsync(buffer, offset, count, cancel);
+            }
         }
     }
 }

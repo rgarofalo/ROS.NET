@@ -105,8 +105,8 @@ namespace Uml.Robotics.Ros
                 message.msg.Serialized = message.serfunc();
 
             int length = message.msg.Serialized.Length;
-            await connection.Write(BitConverter.GetBytes(length), 0, 4, cancel);
-            await connection.Write(message.msg.Serialized, 0, length, cancel);
+            await connection.WriteBlock(BitConverter.GetBytes(length), 0, 4, cancel);
+            await connection.WriteBlock(message.msg.Serialized, 0, length, cancel);
 
             Stats.MessagesSent++;
             Stats.BytesSent += length + 4;
@@ -139,7 +139,7 @@ namespace Uml.Robotics.Ros
             name = pt.Name;
             parent = pt;
 
-            this.outbox = new AsyncQueue<MessageAndSerializerFunc>(parent.MaxQueue);
+            this.outbox = new AsyncQueue<MessageAndSerializerFunc>(Math.Max(parent.MaxQueue, 1), true);
 
             var m = new Dictionary<string, string>
             {

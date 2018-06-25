@@ -398,12 +398,10 @@ namespace Uml.Robotics.Ros
         /// </summary>
         public static void WaitForShutdown()
         {
-            if (shutdownTask == null)
+            if (shutdownTask != null)
             {
-                throw new NullReferenceException($"{nameof(shutdownTask)} was not initialized. You need to call ROS.init first.");
+                shutdownTask.Wait();
             }
-
-            shutdownTask.Wait();
         }
 
 
@@ -417,18 +415,15 @@ namespace Uml.Robotics.Ros
                 if (started)
                     return;
 
-                //PollManager.Reset();          // ## remove
                 ServiceManager.Reset();
                 XmlRpcManager.Reset();
-                //TopicManager.Reset();         // ## remove
+                TopicManager.Reset();
                 ConnectionManager.Reset();
 
-                //PollManager.Instance.AddPollThreadListener(CheckForShutdown);         // ## remove
                 XmlRpcManager.Instance.Bind("shutdown", ShutdownCallback);
                 TopicManager.Instance.Start();
                 ServiceManager.Instance.Start();
                 ConnectionManager.Instance.Start();
-                //PollManager.Instance.Start();     // ## remove
                 XmlRpcManager.Instance.Start();
 
                 shutdownRequested = false;

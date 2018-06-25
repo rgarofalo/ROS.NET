@@ -36,7 +36,7 @@ namespace Uml.Robotics.Ros
         internal static void Reset() =>
             instance = new Lazy<RosOutAppender>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private AsyncQueue<Log> queue = new AsyncQueue<Log>(10000);
+        private AsyncQueue<Log> queue = new AsyncQueue<Log>(10000, true);
         private Task publishLoopTask;
         private TopicManager topicManager;
 

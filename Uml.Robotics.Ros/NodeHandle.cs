@@ -390,7 +390,7 @@ namespace Uml.Robotics.Ros
             throw new InvalidOperationException("Could not advertise service");
         }
 
-        public ServiceClientAsync<MReq, MRes> ServiceClient<MReq, MRes>(
+        public ServiceClient<MReq, MRes> ServiceClient<MReq, MRes>(
             string serviceName,
             bool persistent = false,
             IDictionary<string, string> headerValues = null
@@ -399,16 +399,16 @@ namespace Uml.Robotics.Ros
             where MRes : RosMessage, new() =>
             ServiceClient<MReq, MRes>(new ServiceClientOptions(serviceName, persistent, headerValues));
 
-        public ServiceClientAsync<MReq, MRes> ServiceClient<MReq, MRes>(ServiceClientOptions ops)
+        public ServiceClient<MReq, MRes> ServiceClient<MReq, MRes>(ServiceClientOptions ops)
             where MReq : RosMessage, new()
             where MRes : RosMessage, new()
         {
             string service = ResolveName(ops.service);
             string md5sum = new MReq().MD5Sum();
-            return new ServiceClientAsync<MReq, MRes>(service, ops.Persistent, ops.HeaderValues, md5sum);
+            return new ServiceClient<MReq, MRes>(service, ops.Persistent, ops.HeaderValues, md5sum);
         }
 
-        public ServiceClientAsync<MSrv> ServiceClient<MSrv>(
+        public ServiceClient<MSrv> ServiceClient<MSrv>(
             string serviceName,
             bool persistent = false,
             IDictionary<string, string> headerValues = null
@@ -416,12 +416,12 @@ namespace Uml.Robotics.Ros
         where MSrv : RosService, new() =>
             ServiceClient<MSrv>(new ServiceClientOptions(serviceName, persistent, headerValues));
 
-        public ServiceClientAsync<MSrv> ServiceClient<MSrv>(ServiceClientOptions ops)
+        public ServiceClient<MSrv> ServiceClient<MSrv>(ServiceClientOptions ops)
             where MSrv : RosService, new()
         {
             string service = ResolveName(ops.service);
             string md5sum = new MSrv().RequestMessage.MD5Sum();
-            return new ServiceClientAsync<MSrv>(service, ops.Persistent, ops.HeaderValues, md5sum);
+            return new ServiceClient<MSrv>(service, ops.Persistent, ops.HeaderValues, md5sum);
         }
 
         private void Construct(string ns, bool validate_name)

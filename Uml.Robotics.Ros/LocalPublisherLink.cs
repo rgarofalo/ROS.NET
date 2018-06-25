@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -8,7 +7,7 @@ namespace Uml.Robotics.Ros
     {
         private object gate = new object();
         private bool disposed;
-        private LocalSubscriberLink publisher;
+        //private LocalSubscriberLink publisher;
 
         public LocalPublisherLink(Subscription parent, string xmlrpc_uri)
             : base(parent, xmlrpc_uri)
@@ -43,7 +42,7 @@ namespace Uml.Robotics.Ros
                 disposed = true;
             }
 
-            publisher?.Dispose();
+            //publisher?.Dispose();
             Parent.RemovePublisherLink(this);
         }
 

@@ -45,7 +45,7 @@ namespace Uml.Robotics.Ros
             Parent.RemovePublisherLink(this);
             if (receiveLoop != null)
             {
-                receiveLoop.Wait();       // wait for publisher loop to terminate
+                receiveLoop.WhenCompleted().Wait();       // wait for publisher loop to terminate
             }
         }
 
@@ -82,9 +82,7 @@ namespace Uml.Robotics.Ros
                     while (!cancel.IsCancellationRequested)
                     {
                         // read message length
-                        var lengthBuffer = await connection.ReadBlock(4, cancel);
-                        int length = BitConverter.ToInt32(lengthBuffer, 0);
-
+                        int length = await connection.ReadInt32(cancel);
                         if (length > Connection.MESSAGE_SIZE_LIMIT)
                         {
                             var message = $"Message received in TransportPublisherLink exceeds length limit of {Connection.MESSAGE_SIZE_LIMIT}. Dropping connection";
@@ -132,7 +130,7 @@ namespace Uml.Robotics.Ros
                 }
                 catch (Exception e)
                 {
-                    if (dropping || e is TaskCanceledException)
+                    if (dropping || cancel.IsCancellationRequested)
                     {
                         return;     // no retry when disposing
                     }

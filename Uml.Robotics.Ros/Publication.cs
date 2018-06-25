@@ -22,7 +22,7 @@ namespace Uml.Robotics.Ros
         private List<SubscriberCallbacks> callbacks = new List<SubscriberCallbacks>();
 
         internal MessageAndSerializerFunc lastMessage;
-        internal AsyncQueue<MessageAndSerializerFunc> publishQueue = new AsyncQueue<MessageAndSerializerFunc>(65535);
+        internal AsyncQueue<MessageAndSerializerFunc> publishQueue = new AsyncQueue<MessageAndSerializerFunc>(65535, true);
 
         CancellationTokenSource cts;
         CancellationToken cancel;

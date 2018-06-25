@@ -16,11 +16,11 @@ namespace Xamla.Robotics.Ros.Async
             {
                 cancel.ThrowIfCancellationRequested();
 
-                int bytesRead = await source.ReadAsync(buffer, 0, Math.Min((int)remaining, buffer.Length)).ConfigureAwait(false);
+                int bytesRead = await source.ReadAsync(buffer, 0, Math.Min((int)remaining, buffer.Length), cancel);
                 if (bytesRead == 0)
                     throw new EndOfStreamException("Unexpected end of stream");
 
-                await destination.WriteAsync(buffer, 0, bytesRead).ConfigureAwait(false);
+                await destination.WriteAsync(buffer, 0, bytesRead, cancel).ConfigureAwait(false);
                 remaining -= bytesRead;
             }
         }
@@ -29,7 +29,7 @@ namespace Xamla.Robotics.Ros.Async
         {
             while (count > 0)
             {
-                int read = await stream.ReadAsync(buffer, offset, count).ConfigureAwait(false);
+                int read = await stream.ReadAsync(buffer, offset, count, cancel);
                 if (read <= 0)
                     return false;
 

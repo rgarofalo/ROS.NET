@@ -29,7 +29,7 @@ namespace Uml.Robotics.Ros
             this.md5sum = md5sum;
         }
 
-        public async Task Init()
+        protected async Task Init()
         {
             if (persistent)
             {

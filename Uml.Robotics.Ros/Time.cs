@@ -12,7 +12,7 @@ namespace Uml.Robotics.Ros
         public event SimTimeDelegate SimTimeEvent;
 
         private static readonly ILogger logger = ApplicationLogging.CreateLogger<SimTime>();
-        private static Lazy<SimTime> instance = new Lazy<SimTime>(LazyThreadSafetyMode.ExecutionAndPublication);
+        private static Lazy<SimTime> instance = new Lazy<SimTime>(() => new SimTime(), LazyThreadSafetyMode.ExecutionAndPublication);
 
         public static SimTime Instance =>
             instance.Value;
@@ -21,7 +21,7 @@ namespace Uml.Robotics.Ros
             Instance.Shutdown();
 
         internal static void Reset() =>
-            instance = new Lazy<SimTime>(LazyThreadSafetyMode.ExecutionAndPublication);
+            instance = new Lazy<SimTime>(() => new SimTime(), LazyThreadSafetyMode.ExecutionAndPublication);
 
         private bool checkedSimTime;
         private NodeHandle nodeHandle;

@@ -6,7 +6,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Uml.Robotics.XmlRpc;
-using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -137,12 +136,12 @@ namespace Uml.Robotics.Ros
 
                 if (IsServiceAdvertised(ops.service))
                 {
-                    logger.LogWarning("Tried to advertise  a service that is already advertised in this node [{0}]", ops.service);
+                    logger.LogWarning($"Tried to advertise a service that is already advertised in this node [{ops.service}].");
                     return false;
                 }
                 if (ops.helper == null)
                     ops.helper = new ServiceCallbackHelper<MReq, MRes>(ops.srv_func);
-                ServicePublication<MReq, MRes> pub = new ServicePublication<MReq, MRes>(ops.service, ops.md5sum, ops.datatype, ops.req_datatype, ops.res_datatype, ops.helper, ops.callback_queue, ops.tracked_object);
+                ServicePublication<MReq, MRes> pub = new ServicePublication<MReq, MRes>(ops.service, ops.md5sum, ops.datatype, ops.req_datatype, ops.res_datatype, ops.helper, ops.callback_queue);
                 servicePublications.Add(pub);
             }
 
@@ -153,7 +152,7 @@ namespace Uml.Robotics.Ros
             args.Set(3, xmlRpcManager.Uri);
             if (!Master.Execute("registerService", args, result, payload, true))
             {
-                throw new RosException("RPC \"registerService\" for service " + ops.service + " failed.");
+                throw new RosException($"RPC \"registerService\" for service '{ops.service}' failed.");
             }
 
             return true;
@@ -169,7 +168,7 @@ namespace Uml.Robotics.Ros
 
                 foreach (IServicePublication sp in servicePublications)
                 {
-                    if (sp.name == service && !sp.isDropped)
+                    if (sp.name == service)
                     {
                         pub = sp;
                         servicePublications.Remove(sp);

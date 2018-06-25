@@ -28,11 +28,13 @@ namespace Xamla.Robotics.Ros.Async
         readonly int maxLength;
         bool completed;
         ExceptionDispatchInfo error;
+        readonly bool dropOldestOnOverflow;
         bool disposed;
 
-        public AsyncQueue(int maxLength)
+        public AsyncQueue(int maxLength, bool dropOldestOnOverflow)
         {
             this.maxLength = maxLength;
+            this.dropOldestOnOverflow = dropOldestOnOverflow;
             this.queue = new ConcurrentQueue<T>();
             this.enqueSignal = new AsyncAutoResetEvent();
             this.dequeueSignal = new AsyncAutoResetEvent();
@@ -84,8 +86,16 @@ namespace Xamla.Robotics.Ros.Async
         {
             lock (queue)
             {
-                if (completed || queue.Count >= maxLength)
+                if (completed)
                     return false;
+
+                if (queue.Count >= maxLength)
+                {
+                    if (!dropOldestOnOverflow)
+                        return false;
+
+                    queue.TryDequeue(out T lost);
+                }
 
                 queue.Enqueue(value);
             }
@@ -111,6 +121,13 @@ namespace Xamla.Robotics.Ros.Async
                     {
                         queue.Enqueue(value);
                         enqueued = true;
+                    }
+                    else if (dropOldestOnOverflow)
+                    {
+                        if (queue.TryDequeue(out T lost))
+                        {
+                            continue;
+                        }
                     }
                 }
 

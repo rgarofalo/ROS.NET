@@ -2,16 +2,21 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
-    public class ServiceClientAsync<MReq, MRes>
+    public class ServiceClient<MReq, MRes>
         : ServiceClientBase
         where MReq : RosMessage, new() where MRes : RosMessage, new()
     {
-        internal ServiceClientAsync(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
+        internal ServiceClient(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
             : base(serviceName, persistent, headerValues, md5sum)
         {
+            if (persistent)
+            {
+                this.Init().WhenCompleted().Wait();
+            }
         }
 
         protected override async Task<IServiceServerLinkAsync> CreateLink()
@@ -19,7 +24,10 @@ namespace Uml.Robotics.Ros
             return await ServiceManager.Instance.CreateServiceServerLinkAsync<MReq, MRes>(serviceName, persistent, md5sum, md5sum, headerValues);
         }
 
-        public async Task<(bool, MRes)> Call(MReq request)
+        public (bool, MRes) Call(MReq request) =>
+            CallAsync(request).Result;
+
+        public async Task<(bool, MRes)> CallAsync(MReq request)
         {
             string md5 = request.MD5Sum();
             return await Call(request, md5);
@@ -48,13 +56,17 @@ namespace Uml.Robotics.Ros
         }
     }
 
-    public class ServiceClientAsync<MSrv>
+    public class ServiceClient<MSrv>
         : ServiceClientBase
         where MSrv : RosService, new()
     {
-        internal ServiceClientAsync(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
+        internal ServiceClient(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
             : base(serviceName, persistent, headerValues, md5sum)
         {
+            if (persistent)
+            {
+                this.Init().WhenCompleted().Wait();
+            }
         }
 
         protected override Task<IServiceServerLinkAsync> CreateLink()
@@ -62,13 +74,16 @@ namespace Uml.Robotics.Ros
             return ServiceManager.Instance.CreateServiceServerLinkAsync<MSrv>(serviceName, persistent, md5sum, md5sum, headerValues);
         }
 
-        public async Task<bool> Call(MSrv srv)
+        public bool Call(MSrv srv) =>
+           CallAsync(srv).Result;
+
+        public async Task<bool> CallAsync(MSrv srv)
         {
             string md5 = srv.RequestMessage.MD5Sum();
-            return await Call(srv, md5);
+            return await CallAsync(srv, md5);
         }
 
-        public async Task<bool> Call(MSrv srv, string serviceMd5Sum)
+        public async Task<bool> CallAsync(MSrv srv, string serviceMd5Sum)
         {
             try
             {

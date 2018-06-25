@@ -60,7 +60,7 @@ namespace Uml.Robotics.Ros
         private string uri = "";
         private int port;
 
-        private XmlRpcManager()
+        public XmlRpcManager()
         {
             this.server = new XmlRpcServer();
             this.getPid = (parms, result) => ResponseInt(1, "", Process.GetCurrentProcess().Id)(result);

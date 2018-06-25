@@ -66,9 +66,7 @@ namespace Uml.Robotics.Ros
                     cancel.ThrowIfCancellationRequested();
 
                     // read request
-                    byte[] lengthBuffer = await connection.ReadBlock(4, cancel);
-                    int requestLength = BitConverter.ToInt32(lengthBuffer, 0);
-
+                    int requestLength = await connection.ReadInt32(cancel);
                     if (requestLength < 0 || requestLength > Connection.MESSAGE_SIZE_LIMIT)
                     {
                         var errorMessage = $"Message length exceeds limit of {Connection.MESSAGE_SIZE_LIMIT}. Dropping connection.";
@@ -78,8 +76,21 @@ namespace Uml.Robotics.Ros
 
                     byte[] requestBuffer = await connection.ReadBlock(requestLength, cancel);
 
-                    // process
-                    await parent.ProcessRequest(requestBuffer, requestLength, this);
+                    try
+                    {
+                        // process
+                        var (result, success) = await parent.ProcessRequest(requestBuffer, this);
+                        await ProcessResponse(result, success);
+                    }
+                    catch (Exception e)
+                    {
+                        string errorMessage = "Exception thrown while processing service call: " + e.Message;
+                        ROS.Error()(errorMessage);
+                        await ProcessResponse(errorMessage, false);
+                    }
+
+                    if (!persistent)
+                        break;
                 }
             }
             finally
@@ -126,7 +137,7 @@ namespace Uml.Robotics.Ros
             {
                 ["request_type"] = publication.req_datatype,
                 ["response_type"] = publication.res_datatype,
-                ["type"] = publication.datatype,
+                ["type"] = publication.dataType,
                 ["md5sum"] = publication.md5sum,
                 ["callerid"] = ThisNode.Name
             };
@@ -155,7 +166,7 @@ namespace Uml.Robotics.Ros
                 Array.Copy(BitConverter.GetBytes(0),0, buf, 1,4);
             }
 
-            await connection.Write(buf, 0, buf.Length, cancel);
+            await connection.WriteBlock(buf, 0, buf.Length, cancel);
         }
 
         public virtual async Task ProcessResponse(RosMessage msg, bool success)
@@ -175,7 +186,7 @@ namespace Uml.Robotics.Ros
                 buf[0] = (byte) (success ? 0x01 : 0x00);
                 Array.Copy(BitConverter.GetBytes(0),0, buf, 1,4);
             }
-            await connection.Write(buf, 0, buf.Length, cancel);
+            await connection.WriteBlock(buf, 0, buf.Length, cancel);
         }
     }
 }

@@ -5,32 +5,26 @@ namespace Uml.Robotics.Ros
 {
     public class ServiceServer
     {
-        internal NodeHandle nodeHandle;
-        internal string service = "";
-        internal bool unadvertised;
+        private NodeHandle nodeHandle;
+        private string service;
+        private bool unadvertised;
 
-        public ServiceServer(string service, NodeHandle nodeHandle)
+        internal ServiceServer(string service, NodeHandle nodeHandle)
         {
             this.service = service;
             this.nodeHandle = nodeHandle;
         }
 
-        public bool IsValid
-        {
-            get { return !unadvertised; }
-        }
+        public bool IsValid =>
+            !unadvertised;
 
-        public void Shutdown()
-        {
-            unadvertise();
-        }
+        public void Shutdown() =>
+            Unadvertise();
 
-        public string getService()
-        {
-            return service;
-        }
+        public string ServiceName() =>
+            service;
 
-        internal void unadvertise()
+        internal void Unadvertise()
         {
             if (!unadvertised)
             {
