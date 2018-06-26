@@ -64,7 +64,7 @@ namespace Uml.Robotics.Ros
             return true;
         }
 
-        public static async Task<bool> WaitForService(string serviceName, TimeSpan timeout)
+        public static async Task<bool> WaitForService(string serviceName, TimeSpan timeout, CancellationToken cancel = default(CancellationToken))
         {
             DateTime startTime = DateTime.UtcNow;
             bool printed = false;
@@ -73,7 +73,12 @@ namespace Uml.Robotics.Ros
             {
                 if (await Exists(serviceName, !printed))
                 {
-                    break;
+                    if (printed && ROS.OK)
+                    {
+                        string mappedName = Names.Resolve(serviceName);
+                        ROS.Info()("waitForService: Service[{0}] is now available.", mappedName);
+                    }
+                    return true;
                 }
 
                 printed = true;
@@ -84,15 +89,10 @@ namespace Uml.Robotics.Ros
                         return false;
                 }
 
-                await Task.Delay(ROS.WallDuration);
+                await Task.Delay(ROS.WallDuration, cancel);
             }
 
-            if (printed && ROS.OK)
-            {
-                string mappedName = Names.Resolve(serviceName);
-                ROS.Info()("waitForService: Service[{0}] is now available.", mappedName);
-            }
-            return true;
+            return false;
         }
 
         public static Task<bool> WaitForService(string serviceName, int timeout)
