@@ -120,7 +120,7 @@ namespace Uml.Robotics.Ros
     {
         protected ICallbackQueue callback;
         protected List<IServiceClientLink> clientLinks = new List<IServiceClientLink>();
-        protected object gate = new object();
+        protected readonly object gate = new object();
         protected long callbackId = -1;
 
         internal string dataType;

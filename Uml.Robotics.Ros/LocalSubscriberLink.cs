@@ -4,7 +4,7 @@ namespace Uml.Robotics.Ros
 {
     internal class LocalSubscriberLink : SubscriberLink
     {
-        private object gate = new object();
+        private readonly object gate = new object();
         private bool dropped;
         private LocalPublisherLink subscriber;
 

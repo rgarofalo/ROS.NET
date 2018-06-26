@@ -7,17 +7,17 @@ namespace Uml.Robotics.Ros
 {
     public class CallbackQueue : ICallbackQueue
     {
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<CallbackQueue>();
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<CallbackQueue>();
+        private readonly object gate = new object();
+
         private int count;
         private int calling;
         private bool enabled;
         private Dictionary<long, IDInfo> idInfo = new Dictionary<long, IDInfo>();
         private object idInfoMutex = new object();
         private AutoResetEvent sem = new AutoResetEvent(false);
-        private object mutex = new object();
         private List<CallbackInfo> callbacks = new List<CallbackInfo>();
         private TLS tls;
-
 
         public CallbackQueue()
         {
@@ -40,7 +40,7 @@ namespace Uml.Robotics.Ros
             CallbackInfo info = new CallbackInfo { Callback = cb, RemovalId = owner_id };
             //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: Add callback owner: {owner_id} {cb.ToString()}");
 
-            lock (mutex)
+            lock (gate)
             {
                 if (!enabled)
                     return;
@@ -62,7 +62,7 @@ namespace Uml.Robotics.Ros
         {
             SetupTls();
             int called = 0;
-            lock (mutex)
+            lock (gate)
             {
                 if (!enabled)
                     return;
@@ -74,7 +74,7 @@ namespace Uml.Robotics.Ros
                     return;
             }
             //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: Enqueue TLS");
-            lock (mutex)
+            lock (gate)
             {
                 if (count == 0)
                     return;
@@ -92,7 +92,7 @@ namespace Uml.Robotics.Ros
                 if (CallOne(tls) != CallOneResult.Empty)
                     ++called;
             }
-            lock (mutex)
+            lock (gate)
             {
                 calling -= called;
             }
@@ -101,7 +101,7 @@ namespace Uml.Robotics.Ros
 
         public void Clear()
         {
-            lock (mutex)
+            lock (gate)
             {
                 callbacks.Clear();
                 count = 0;
@@ -110,7 +110,7 @@ namespace Uml.Robotics.Ros
 
         public void Disable()
         {
-            lock (mutex)
+            lock (gate)
             {
                 enabled = false;
             }
@@ -119,7 +119,7 @@ namespace Uml.Robotics.Ros
 
         public void Dispose()
         {
-            lock (mutex)
+            lock (gate)
             {
                 Disable();
             }
@@ -127,7 +127,7 @@ namespace Uml.Robotics.Ros
 
         public void Enable()
         {
-            lock (mutex)
+            lock (gate)
             {
                 enabled = true;
             }
@@ -148,7 +148,7 @@ namespace Uml.Robotics.Ros
                 RemoveAll(ownerId);
             else
             {
-                Logger.LogDebug("removeByID w/ WRONG THREAD ID");
+                logger.LogDebug("removeByID w/ WRONG THREAD ID");
                 RemoveAll(ownerId);
             }
         }
@@ -179,7 +179,7 @@ namespace Uml.Robotics.Ros
                     }
                     if (result == CallbackInterface.CallResult.TryAgain && !info.MarkedForRemoval)
                     {
-                        lock (mutex)
+                        lock (gate)
                         {
                             callbacks.Add(info);
                             count++;
@@ -197,7 +197,7 @@ namespace Uml.Robotics.Ros
 
         private void RemoveAll(long owner_id)
         {
-            lock (mutex)
+            lock (gate)
             {
                 callbacks.RemoveAll(ici => ici.RemovalId == owner_id);
                 count = callbacks.Count;

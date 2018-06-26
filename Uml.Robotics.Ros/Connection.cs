@@ -24,7 +24,9 @@ namespace Uml.Robotics.Ros
     {
         public const int MESSAGE_SIZE_LIMIT = 1000000000;
 
-        private readonly ILogger logger;
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<Connection>();
+        private readonly object gate = new object();
+
         private TcpClient client;
 
         private bool disposed;
@@ -39,15 +41,14 @@ namespace Uml.Robotics.Ros
         {
             this.client = client ?? throw new ArgumentNullException(nameof(client));
             this.Stream = client.GetStream();
-            this.logger = ApplicationLogging.CreateLogger<Connection>();
         }
 
         public void Dispose()
         {
-            lock (client)
+            lock (gate)
             {
                 if (disposed)
-                    return;
+                    return;     // ignore re-entrance and duplicate calls to Dispose()
                 disposed = true;
             }
 

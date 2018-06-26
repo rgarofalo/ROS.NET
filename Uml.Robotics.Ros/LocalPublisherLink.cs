@@ -5,7 +5,7 @@ namespace Uml.Robotics.Ros
 {
     internal class LocalPublisherLink : PublisherLink
     {
-        private object gate = new object();
+        private readonly object gate = new object();
         private bool disposed;
         //private LocalSubscriberLink publisher;
 

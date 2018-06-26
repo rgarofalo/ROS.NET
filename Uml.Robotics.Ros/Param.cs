@@ -14,7 +14,7 @@ namespace Uml.Robotics.Ros
 
     public static class Param
     {
-        static object gate = new object();
+        static readonly object gate = new object();
         static readonly ILogger logger = ApplicationLogging.CreateLogger(nameof(Param));
         static Dictionary<string, XmlRpcValue> cachedValues = new Dictionary<string, XmlRpcValue>();        // cache contains mapped keys
         static Dictionary<string, List<ParamDelegate>> subscriptions = new Dictionary<string, List<ParamDelegate>>();
