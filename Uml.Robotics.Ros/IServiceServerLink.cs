@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Uml.Robotics.Ros
 {
-    public interface IServiceServerLinkAsync
+    public interface IServiceServerLink
         : IDisposable
     {
         bool IsValid { get; }

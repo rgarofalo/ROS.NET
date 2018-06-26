@@ -18,7 +18,7 @@ namespace Uml.Robotics.Ros
         protected string md5sum;
         protected IDictionary<string, string> headerValues;
 
-        protected IServiceServerLinkAsync serverLink;
+        protected IServiceServerLink serverLink;
         protected bool busy;
 
         public ServiceClientBase(string serviceName, bool persistent, IDictionary<string, string> headerValues, string md5sum)
@@ -37,7 +37,7 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        protected abstract Task<IServiceServerLinkAsync> CreateLink();
+        protected abstract Task<IServiceServerLink> CreateLink();
 
         public void Dispose()
         {

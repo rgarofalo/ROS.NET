@@ -21,7 +21,7 @@ namespace Uml.Robotics.Ros
         private readonly object gate = new object();
         private ConnectionManager connectionManager;
         private List<IServicePublication> servicePublications = new List<IServicePublication>();
-        private HashSet<IServiceServerLinkAsync> serviceServerLinksAsync = new HashSet<IServiceServerLinkAsync>();
+        private HashSet<IServiceServerLink> serviceServerLinksAsync = new HashSet<IServiceServerLink>();
         private bool shuttingDown;
         private XmlRpcManager xmlRpcManager;
 
@@ -64,7 +64,7 @@ namespace Uml.Robotics.Ros
             return (host, port);
         }
 
-        private async Task<IServiceServerLinkAsync> CreateServiceServerLinkAsync(
+        private async Task<IServiceServerLink> CreateServiceServerLinkAsync(
             string service,
             bool persistent,
             string requestMd5Sum,
@@ -91,7 +91,7 @@ namespace Uml.Robotics.Ros
             return link;
         }
 
-        internal async Task<IServiceServerLinkAsync> CreateServiceServerLinkAsync<S>(
+        internal async Task<IServiceServerLink> CreateServiceServerLinkAsync<S>(
             string service,
             bool persistent,
             string requestMd5Sum,
@@ -103,7 +103,7 @@ namespace Uml.Robotics.Ros
             return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<S>());
         }
 
-        internal async Task<IServiceServerLinkAsync> CreateServiceServerLinkAsync<Req, Res>(
+        internal async Task<IServiceServerLink> CreateServiceServerLinkAsync<Req, Res>(
             string service,
             bool persistent,
             string requestMd5Sum,
@@ -116,15 +116,13 @@ namespace Uml.Robotics.Ros
             return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<Req, Res>());
         }
 
-        internal void RemoveServiceServerLinkAsync(IServiceServerLinkAsync link)
+        internal void RemoveServiceServerLinkAsync(IServiceServerLink link)
         {
             lock (gate)
             {
-                if (shuttingDown)
-                    return;
-
                 serviceServerLinksAsync.Remove(link);
             }
+            link.Dispose();
         }
 
         internal bool AdvertiseService<MReq, MRes>(AdvertiseServiceOptions<MReq, MRes> ops) where MReq : RosMessage, new() where MRes : RosMessage, new()
@@ -188,7 +186,7 @@ namespace Uml.Robotics.Ros
 
         internal void Shutdown()
         {
-            List<IServiceServerLinkAsync> localAsyncServiceClients;
+            List<IServiceServerLink> localAsyncServiceClients;
             lock (gate)
             {
                 if (shuttingDown)
@@ -206,7 +204,7 @@ namespace Uml.Robotics.Ros
                 serviceServerLinksAsync.Clear();
             }
 
-            foreach (IServiceServerLinkAsync link in localAsyncServiceClients)
+            foreach (IServiceServerLink link in localAsyncServiceClients)
             {
                 link.Dispose();
             }

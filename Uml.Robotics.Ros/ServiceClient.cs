@@ -19,7 +19,7 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        protected override async Task<IServiceServerLinkAsync> CreateLink()
+        protected override async Task<IServiceServerLink> CreateLink()
         {
             return await ServiceManager.Instance.CreateServiceServerLinkAsync<MReq, MRes>(serviceName, persistent, md5sum, md5sum, headerValues);
         }
@@ -69,7 +69,7 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        protected override Task<IServiceServerLinkAsync> CreateLink()
+        protected override Task<IServiceServerLink> CreateLink()
         {
             return ServiceManager.Instance.CreateServiceServerLinkAsync<MSrv>(serviceName, persistent, md5sum, md5sum, headerValues);
         }

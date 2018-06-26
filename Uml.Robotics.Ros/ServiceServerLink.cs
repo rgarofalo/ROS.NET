@@ -10,7 +10,7 @@ using Xamla.Robotics.Ros.Async;
 namespace Uml.Robotics.Ros
 {
     internal class ServiceServerLink
-        : IServiceServerLinkAsync
+        : IServiceServerLink
     {
         const int MAX_CALL_QUEUE_LENGTH = 8096;
 
@@ -74,6 +74,8 @@ namespace Uml.Robotics.Ros
 
         public void Dispose()
         {
+            FlushCallQueue(null);
+            callQueue.Dispose();
             cancellationTokenSource.Cancel();
             connection?.Dispose();
             connection = null;
@@ -212,18 +214,19 @@ namespace Uml.Robotics.Ros
                     var call = callQueue.Current;
                     await ProcessCall(call);
                 }
+
+                connection.Socket.Shutdown(SocketShutdown.Send);
+                connection.Close(50);
             }
             catch (Exception e)
             {
-                logger.LogDebug($"Service client for [{name}] dropped: {e.Message}");
-
-                // cancel current call if any
-                if (callQueue.Current != null)
+                if (!(e is OperationCanceledException))
                 {
-                    callQueue.Current.Tcs.TrySetException(e);
+                    logger.LogDebug($"Service client for [{name}] dropped: {e.Message}");
                 }
 
-                ClearCalls(e);
+                FlushCallQueue(e);
+                callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH, true);
 
                 throw;
             }
@@ -234,19 +237,26 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        private void ClearCalls(Exception e)
+        private void FlushCallQueue(Exception e)
         {
-            // dispose queue to ensure no further inserts can happen
-            callQueue.Dispose();
+            // mark queue as completed to ensure no further inserts can happen
+            callQueue.OnCompleted();
 
             // cancel all other calls
             var remainingCalls = callQueue.Flush();
-            foreach (var call in remainingCalls)
+
+            if (callQueue.Current != null)
             {
-                call.Tcs.TrySetException(e);
+                remainingCalls.Add(callQueue.Current);
             }
 
-            callQueue = new AsyncQueue<CallInfo>(MAX_CALL_QUEUE_LENGTH, true);
+            foreach (var call in remainingCalls)
+            {
+                if (e != null)
+                    call.Tcs.TrySetException(e);
+                else
+                    call.Tcs.TrySetCanceled();
+            }
         }
 
         public async Task<bool> Call(RosService srv)
