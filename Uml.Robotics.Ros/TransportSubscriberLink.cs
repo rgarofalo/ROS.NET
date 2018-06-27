@@ -164,10 +164,7 @@ namespace Uml.Robotics.Ros
 
         public override void EnqueueMessage(MessageAndSerializerFunc holder)
         {
-            if (!outbox.TryOnNext(holder))
-            {
-                // TODO: handle queue full case
-            }
+            outbox.TryOnNext(holder);       // queue will drop oldest messages when full
         }
 
         public override void GetPublishTypes(ref bool ser, ref bool nocopy, string type_info)
