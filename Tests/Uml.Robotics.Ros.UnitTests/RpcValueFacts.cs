@@ -29,7 +29,7 @@ namespace Uml.Robotics.Ros.UnitTests
 
             Assert.Equal(XmlRpcType.Boolean, w[1].Type);
             Assert.Equal(v[1].GetBool(), w[1].GetBool());
-            Assert.Equal(true, w[1].GetBool());
+            Assert.True(w[1].GetBool());
 
             Assert.Equal(XmlRpcType.Double, w[2].Type);
             Assert.Equal(v[2].GetDouble(), w[2].GetDouble(), 2);
@@ -74,7 +74,7 @@ namespace Uml.Robotics.Ros.UnitTests
             Assert.Equal(8, w.Count);
 
             Assert.Equal(XmlRpcType.Struct, w.Type);
-            Assert.True(w.HasMember("memberInt"));            
+            Assert.True(w.HasMember("memberInt"));
             Assert.True(w.HasMember("memberBool"));
             Assert.True(w.HasMember("memberDouble"));
             Assert.True(w.HasMember("memberBinary"));
@@ -97,7 +97,7 @@ namespace Uml.Robotics.Ros.UnitTests
             Action<XmlRpcValue> checkValueOneLevel = (XmlRpcValue value) =>
             {
                 Assert.Equal(789, value["memberInt"].GetInt());
-                Assert.Equal(true, value["memberBool"].GetBool());
+                Assert.True(value["memberBool"].GetBool());
                 Assert.Equal(765.678, value["memberDouble"].GetDouble(), 3);
                 Assert.Equal(new byte[] { 0, 2, 4, 6, 8, 10, 12 }, value["memberBinary"].GetBinary());
                 Assert.Equal("qwerty", value["memberString"].GetString());

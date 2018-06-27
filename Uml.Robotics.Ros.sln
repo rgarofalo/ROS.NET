@@ -19,17 +19,17 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RosParamClient", "Samples\R
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{9C75EAAD-EACA-4E4F-B9DA-D7BADB3B7577}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransformsSample", "Samples\TransformsSample\TransformsSample.csproj", "{F121E1E2-A1A4-42E1-B0FA-EB6B41A10EAF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TransformsSample", "Samples\TransformsSample\TransformsSample.csproj", "{F121E1E2-A1A4-42E1-B0FA-EB6B41A10EAF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{EEE8759B-47AD-455B-8F32-0A36EAE2512B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Uml.Robotics.Ros.UnitTests", "Tests\Uml.Robotics.Ros.UnitTests\Uml.Robotics.Ros.UnitTests.csproj", "{1845BA08-91C1-411D-B1F5-7DF2344498C3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Uml.Robotics.Ros.UnitTests", "Tests\Uml.Robotics.Ros.UnitTests\Uml.Robotics.Ros.UnitTests.csproj", "{1845BA08-91C1-411D-B1F5-7DF2344498C3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RosoutSample", "Samples\RosoutSample\RosoutSample.csproj", "{F41BDC33-84FA-4E26-BC6C-187044E49BD6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RosoutSample", "Samples\RosoutSample\RosoutSample.csproj", "{F41BDC33-84FA-4E26-BC6C-187044E49BD6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IntegrationTests", "Tests\IntegrationTests\IntegrationTests.csproj", "{8F229241-69FF-42A3-925C-49114DCB37EB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IntegrationTests", "Tests\IntegrationTests\IntegrationTests.csproj", "{8F229241-69FF-42A3-925C-49114DCB37EB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ActionClientTestbed", "Samples\ActionClientTestbed\ActionClientTestbed.csproj", "{353EDE41-B3E9-4CFE-BD24-EFA47018E0FD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ActionClientTestbed", "Samples\ActionClientTestbed\ActionClientTestbed.csproj", "{353EDE41-B3E9-4CFE-BD24-EFA47018E0FD}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Uml.Robotics.Ros.MessageBase", "Uml.Robotics.Ros.MessageBase\Uml.Robotics.Ros.MessageBase.csproj", "{61409C4D-4855-4A73-8B37-8445E2638D5D}"
 EndProject
@@ -39,7 +39,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ActionClientSample", "Sampl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ActionServerSample", "Samples\ActionServerSample\ActionServerSample.csproj", "{3041CF5C-222C-412E-8EE6-289C1DE0E567}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PubSubTestbed", "Tests\PubSubTestbed\PubSubTestbed.csproj", "{1C8D0504-5236-4FFF-AA8F-2CFF6C564DC0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PubSubTestbed", "Tests\PubSubTestbed\PubSubTestbed.csproj", "{1C8D0504-5236-4FFF-AA8F-2CFF6C564DC0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -131,5 +131,8 @@ Global
 		{4F0E93D5-6CC7-4971-BB91-A5139CF4B05E} = {9C75EAAD-EACA-4E4F-B9DA-D7BADB3B7577}
 		{3041CF5C-222C-412E-8EE6-289C1DE0E567} = {9C75EAAD-EACA-4E4F-B9DA-D7BADB3B7577}
 		{1C8D0504-5236-4FFF-AA8F-2CFF6C564DC0} = {EEE8759B-47AD-455B-8F32-0A36EAE2512B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {23E67514-C5C2-464B-8371-A9A618DE03BA}
 	EndGlobalSection
 EndGlobal
