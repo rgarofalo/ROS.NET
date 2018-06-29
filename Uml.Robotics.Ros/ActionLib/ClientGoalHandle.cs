@@ -14,17 +14,43 @@ namespace Uml.Robotics.Ros.ActionLib
         where TResult : InnerActionMessage, new()
         where TFeedback : InnerActionMessage, new()
     {
+        private readonly object gate = new object();
         private TaskCompletionSource<TResult> tcs = new TaskCompletionSource<TResult>();
         private IActionClient<TGoal, TResult, TFeedback> actionClient;
 
         public string Id { get; }
         public GoalActionMessage<TGoal> Goal { get; }
-        public CommunicationState State { get; set; }
+
+        private CommunicationState state;
+        public CommunicationState State
+        {
+            get { lock (gate) return state; }
+            set { lock (gate) state = value; }
+        }
+
         public Action<ClientGoalHandle<TGoal, TResult, TFeedback>> OnTransitionCallback { get; set; }
         public Action<ClientGoalHandle<TGoal, TResult, TFeedback>, FeedbackActionMessage<TFeedback>> OnFeedbackCallback { get; set; }
-        public bool Active { get; set; }
-        public GoalStatus LatestGoalStatus { get; set; }
-        public ResultActionMessage<TResult> LatestResultAction { get; set; }
+
+        private bool active;
+        public bool Active
+        {
+            get { lock (gate) return active; }
+            set { lock (gate) active = value; }
+        }
+
+        private GoalStatus latestGoalStatus;
+        public GoalStatus LatestGoalStatus
+        {
+            get { lock (gate) return latestGoalStatus; }
+            set { lock (gate) latestGoalStatus = value; }
+        }
+
+        private ResultActionMessage<TResult> latestResultAction;
+        public ResultActionMessage<TResult> LatestResultAction
+        {
+            get { lock (gate) return latestResultAction; }
+            set { lock (gate) latestResultAction = value; }
+        }
 
         public GoalID GoaldId =>
             this.Goal.GoalId;
@@ -68,12 +94,18 @@ namespace Uml.Robotics.Ros.ActionLib
 
         internal void FireTransitionCallback(CommunicationState nextState)
         {
-            this.State = nextState;
+
+            GoalStatus goalStatus;
+
+            lock (gate)
+            {
+                this.State = nextState;
+                goalStatus = this.LatestGoalStatus;
+            }
 
             // set result on task completion source when we enter a terminal communication state
             if (nextState == CommunicationState.DONE && !tcs.Task.IsCompleted)
             {
-                var goalStatus = this.LatestGoalStatus;
                 if (goalStatus?.status == GoalStatus.SUCCEEDED)
                 {
                     var result = this.Result;
@@ -143,7 +175,7 @@ namespace Uml.Robotics.Ros.ActionLib
 
         public void Resend()
         {
-            if (!Active)
+            if (!this.Active)
             {
                 ROS.Error()("actionlib", "Trying to resend() on an inactive goal handle.");
             }
@@ -153,9 +185,12 @@ namespace Uml.Robotics.Ros.ActionLib
 
         public void Reset()
         {
-            OnTransitionCallback = null;
-            OnFeedbackCallback = null;
-            Active = false;
+            lock (gate)
+            {
+                OnTransitionCallback = null;
+                OnFeedbackCallback = null;
+                Active = false;
+            }
         }
     }
 }
