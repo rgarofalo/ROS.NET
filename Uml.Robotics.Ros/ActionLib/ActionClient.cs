@@ -31,6 +31,9 @@ namespace Uml.Robotics.Ros.ActionLib
         public uint? LatestSequenceNumber { get; private set; } = null;
         public int? PreemptTimeout { get; set; } = null;
 
+        private readonly ILogger logger = ApplicationLogging.CreateLogger<ActionClient<TGoal, TResult, TFeedback>>();
+        private readonly object gate = new object();
+
         private NodeHandle nodeHandle;
         private bool statusReceived;
         private Dictionary<string, ClientGoalHandle<TGoal, TResult, TFeedback>> goalHandles;
@@ -40,8 +43,6 @@ namespace Uml.Robotics.Ros.ActionLib
         private Subscriber feedbackSubscriber;
         private Subscriber resultSubscriber;
         private string statusCallerId = null;
-        private ILogger Logger { get; } = ApplicationLogging.CreateLogger<ActionClient<TGoal, TResult, TFeedback>>();
-        private object lockGoalHandles = new object();
 
         public ActionClient(string name, NodeHandle parentNodeHandle, int queueSize = 50)
         {
@@ -142,7 +143,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 OnFeedbackCallback
             );
 
-            lock (lockGoalHandles)
+            lock (gate)
             {
                 goalHandles[goalAction.GoalId.id] = goalHandle;
             }
@@ -292,52 +293,55 @@ namespace Uml.Robotics.Ros.ActionLib
 
         public bool IsServerConnected()
         {
-            if (!statusReceived)
+            lock (gate)
             {
-                ROS.Debug()("isServerConnected: Didn't receive status yet, so not connected yet");
-                return false;
-            }
+                if (!statusReceived || statusCallerId == null)
+                {
+                    ROS.Debug()("isServerConnected: Didn't receive status yet, so not connected yet");
+                    return false;
+                }
 
-            if (!goalSubscriberCount.ContainsKey(statusCallerId))
-            {
-                ROS.Debug()(
-                    $"isServerConnected: Server {statusCallerId} has not yet subscribed to the cancel " +
-                    "topic, so not connected yet"
-                );
-                ROS.Debug()(FormatSubscriberDebugString("goalSubscribers", goalSubscriberCount));
-                return false;
-            }
+                if (!goalSubscriberCount.ContainsKey(statusCallerId))
+                {
+                    ROS.Debug()(
+                        $"isServerConnected: Server {statusCallerId} has not yet subscribed to the cancel " +
+                        "topic, so not connected yet"
+                    );
+                    ROS.Debug()(FormatSubscriberDebugString("goalSubscribers", goalSubscriberCount));
+                    return false;
+                }
 
-            if (!cancelSubscriberCount.ContainsKey(statusCallerId))
-            {
-                ROS.Debug()(
-                    $"isServerConnected: Server {statusCallerId} has not yet subscribed to the cancel " +
-                    "topic, so not connected yet"
-                );
-                ROS.Debug()(FormatSubscriberDebugString("goalSubscribers", cancelSubscriberCount));
-                return false;
-            }
+                if (!cancelSubscriberCount.ContainsKey(statusCallerId))
+                {
+                    ROS.Debug()(
+                        $"isServerConnected: Server {statusCallerId} has not yet subscribed to the cancel " +
+                        "topic, so not connected yet"
+                    );
+                    ROS.Debug()(FormatSubscriberDebugString("goalSubscribers", cancelSubscriberCount));
+                    return false;
+                }
 
-            if (feedbackSubscriber.NumPublishers == 0)
-            {
-                ROS.Debug()(
-                    $"isServerConnected: Client has not yet connected to feedback topic of server " +
-                    $"{statusCallerId}"
-                );
-                return false;
-            }
+                if (feedbackSubscriber.NumPublishers == 0)
+                {
+                    ROS.Debug()(
+                        $"isServerConnected: Client has not yet connected to feedback topic of server " +
+                        $"{statusCallerId}"
+                    );
+                    return false;
+                }
 
-            if (resultSubscriber.NumPublishers == 0)
-            {
-                ROS.Debug()(
-                    $"isServerConnected: Client has not yet connected to feedback topic of server " +
-                    $"{statusCallerId}"
-                );
-                return false;
-            }
+                if (resultSubscriber.NumPublishers == 0)
+                {
+                    ROS.Debug()(
+                        $"isServerConnected: Client has not yet connected to feedback topic of server " +
+                        $"{statusCallerId}"
+                    );
+                    return false;
+                }
 
-            ROS.Debug()($"isServerConnected: Server {statusCallerId} is fully connected.");
-            return true;
+                ROS.Debug()($"isServerConnected: Server {statusCallerId} is fully connected.");
+                return true;
+            }
         }
 
 
@@ -366,6 +370,7 @@ namespace Uml.Robotics.Ros.ActionLib
             return result;
         }
 
+
         private void HandleConnectionLost()
         {
             lock (goalHandles)
@@ -376,6 +381,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 }
             }
         }
+
 
         private void OnCancelConnectCallback(SingleSubscriberPublisher publisher)
         {
@@ -419,7 +425,7 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             ClientGoalHandle<TGoal, TResult, TFeedback> goalHandle;
             bool goalExists;
-            lock (lockGoalHandles)
+            lock (gate)
             {
                 goalExists = goalHandles.TryGetValue(feedback.GoalStatus.goal_id.id, out goalHandle);
             }
@@ -432,38 +438,42 @@ namespace Uml.Robotics.Ros.ActionLib
 
         private void OnGoalConnectCallback(SingleSubscriberPublisher publisher)
         {
-            int subscriberCount = 0;
-            bool keyExists = goalSubscriberCount.TryGetValue(publisher.SubscriberName, out subscriberCount);
-            goalSubscriberCount[publisher.SubscriberName] = (keyExists ? subscriberCount : 0) + 1;
-            ROS.Debug()($"goalConnectCallback: Adding {publisher.SubscriberName} to goalSubscribers");
+            lock (gate)
+            {
+                bool keyExists = goalSubscriberCount.TryGetValue(publisher.SubscriberName, out int subscriberCount);
+                goalSubscriberCount[publisher.SubscriberName] = (keyExists ? subscriberCount : 0) + 1;
+                ROS.Debug()($"goalConnectCallback: Adding {publisher.SubscriberName} to goalSubscribers");
+            }
         }
 
 
         private void OnGoalDisconnectCallback(SingleSubscriberPublisher publisher)
         {
-            int subscriberCount = 0;
-            bool keyExists = goalSubscriberCount.TryGetValue(publisher.SubscriberName, out subscriberCount);
-            if (!keyExists)
+            lock (gate)
             {
-                // This should never happen. Warning has been copied from official actionlib implementation
-                ROS.Warn()(
-                    $"goalDisconnectCallback: Trying to remove {publisher.SubscriberName} from " +
-                    "goalSubscribers, but it is not in the goalSubscribers list."
-                );
-            }
-            else
-            {
-                ROS.Debug()(
-                    $"goalDisconnectCallback: Removing {publisher.SubscriberName} from goalSubscribers, " +
-                    $"(remaining with same name: {subscriberCount - 1})"
-                );
-                if (subscriberCount <= 1)
+                bool keyExists = goalSubscriberCount.TryGetValue(publisher.SubscriberName, out int subscriberCount);
+                if (!keyExists)
                 {
-                    goalSubscriberCount.Remove(publisher.SubscriberName);
+                    // This should never happen. Warning has been copied from official actionlib implementation
+                    ROS.Warn()(
+                        $"goalDisconnectCallback: Trying to remove {publisher.SubscriberName} from " +
+                        "goalSubscribers, but it is not in the goalSubscribers list."
+                    );
                 }
                 else
                 {
-                    goalSubscriberCount[publisher.SubscriberName] = subscriberCount - 1;
+                    ROS.Debug()(
+                        $"goalDisconnectCallback: Removing {publisher.SubscriberName} from goalSubscribers, " +
+                        $"(remaining with same name: {subscriberCount - 1})"
+                    );
+                    if (subscriberCount <= 1)
+                    {
+                        goalSubscriberCount.Remove(publisher.SubscriberName);
+                    }
+                    else
+                    {
+                        goalSubscriberCount[publisher.SubscriberName] = subscriberCount - 1;
+                    }
                 }
             }
         }
@@ -473,7 +483,7 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             ClientGoalHandle<TGoal, TResult, TFeedback> goalHandle;
             bool goalExists;
-            lock (lockGoalHandles)
+            lock (gate)
             {
                 goalExists = goalHandles.TryGetValue(result.GoalStatus.goal_id.id, out goalHandle);
             }
@@ -520,37 +530,39 @@ namespace Uml.Robotics.Ros.ActionLib
                     $"{statusArray.status_list.Length})."
                 );
 
-                if (statusReceived)
+                Dictionary<string, ClientGoalHandle<TGoal, TResult, TFeedback>> goalHandlesReferenceCopy;
+
+                lock (gate)
                 {
-                    if (statusCallerId != callerId)
+                    if (statusReceived)
                     {
-                        ROS.Warn()($"onStatusMessage: Previously received status from {statusCallerId}, but we now" +
-                            $" received status from {callerId}. Did the ActionServer change?"
+                        if (statusCallerId != callerId)
+                        {
+                            ROS.Warn()($"onStatusMessage: Previously received status from {statusCallerId}, but we now" +
+                                $" received status from {callerId}. Did the ActionServer change?"
+                            );
+                            statusCallerId = callerId;
+                        }
+                    }
+                    else
+                    {
+                        ROS.Debug()("onStatusMessage: Just got our first status message from the ActionServer at " +
+                            $"node {callerId}"
                         );
+                        statusReceived = true;
                         statusCallerId = callerId;
                     }
-                }
-                else
-                {
-                    ROS.Debug()("onStatusMessage: Just got our first status message from the ActionServer at " +
-                        $"node {callerId}"
-                    );
-                    statusReceived = true;
-                    statusCallerId = callerId;
-                }
-                LatestStatusTime = timestamp;
-                if (LatestSequenceNumber != null && statusArray.header.seq <= LatestSequenceNumber)
-                {
-                    ROS.Warn()("Status sequence number was decreased. This can only happen when the action server was restarted. Assume all active goals are lost.");
-                    HandleConnectionLost();
-                }
-                LatestSequenceNumber = statusArray.header.seq;
+                    LatestStatusTime = timestamp;
 
-                // Create a copy of all goal handle references in thread safe environment so it can be looped over all goal
-                // handles without blocking the sending of new goals
-                Dictionary<string, ClientGoalHandle<TGoal, TResult, TFeedback>> goalHandlesReferenceCopy;
-                lock (lockGoalHandles)
-                {
+                    if (LatestSequenceNumber != null && statusArray.header.seq <= LatestSequenceNumber)
+                    {
+                        ROS.Warn()("Status sequence number was decreased. This can only happen when the action server was restarted. Assume all active goals are lost.");
+                        HandleConnectionLost();
+                    }
+                    LatestSequenceNumber = statusArray.header.seq;
+
+                    // Create a copy of all goal handle references in thread safe environment so it can be looped over all goal
+                    // handles without blocking the sending of new goals
                     goalHandlesReferenceCopy = new Dictionary<string, ClientGoalHandle<TGoal, TResult, TFeedback>>(goalHandles);
                 }
 
@@ -573,7 +585,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 foreach (var goalHandleId in completedGoals)
                 {
                     //Logger.LogInformation($"Remove goal handle id {goalHandleId} from tracked goal handles");
-                    lock (lockGoalHandles)
+                    lock (gate)
                     {
                         goalHandles.Remove(goalHandleId);
                     }
@@ -633,7 +645,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 }
                 else
                 {
-                    Logger.LogDebug($"goal status is null for {goalHandle.Id}, most propably because it was just send and there" +
+                    logger.LogDebug($"goal status is null for {goalHandle.Id}, most propably because it was just send and there" +
                         $"and the server has not yet sent an update");
                     return;
                 }
