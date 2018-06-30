@@ -213,7 +213,7 @@ namespace Uml.Robotics.Ros
             }
             catch (Exception ex)
             {
-                logger.LogError("Error starting timer: " + ex);
+                logger.LogError(ex, "Error starting timer: " + ex.Message);
             }
         }
 
@@ -235,7 +235,7 @@ namespace Uml.Robotics.Ros
             }
             catch (Exception ex)
             {
-                logger.LogError("Error starting timer: " + ex);
+                logger.LogError(ex, "Error starting timer: " + ex.Message);
             }
         }
 
@@ -264,7 +264,7 @@ namespace Uml.Robotics.Ros
             }
             catch (Exception ex)
             {
-                logger.LogError("Error starting timer: " + ex);
+                logger.LogError(ex, "Error starting timer: " + ex.Message);
             }
         }
     }

@@ -121,7 +121,7 @@ namespace Uml.Robotics.XmlRpc
                 }
                 catch (SocketException ex)
                 {
-                    logger.LogError("XmlRpcServer::acceptConnection: Could not accept connection ({0}).", ex.Message);
+                    logger.LogError(ex, "XmlRpcServer::acceptConnection: Could not accept connection ({0}).", ex.Message);
                     Thread.Sleep(10);
                 }
             }
@@ -192,7 +192,7 @@ namespace Uml.Robotics.XmlRpc
             }
             catch (XmlRpcException fault)
             {
-                logger.LogWarning("XmlRpcServerConnection::ExecuteRequest: fault {0}.", fault.Message);
+                logger.LogWarning(fault, "XmlRpcServerConnection::ExecuteRequest: fault {0}.", fault.Message);
                 response = GenerateFaultResponse(fault.Message, fault.ErrorCode);
             }
             return response;

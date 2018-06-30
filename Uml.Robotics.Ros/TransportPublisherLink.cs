@@ -123,9 +123,9 @@ namespace Uml.Robotics.Ros
                 {
                     await HandleConnection();
                 }
-                catch (HeaderErrorException)
+                catch (HeaderErrorException e)
                 {
-                    logger.LogError($"Error in the Header: {Parent?.Name ?? "unknown"}");
+                    logger.LogError(e, $"Error in the Header: {Parent?.Name ?? "unknown"}");
                     return;     // no retry in case of header error
                 }
                 catch (Exception e)

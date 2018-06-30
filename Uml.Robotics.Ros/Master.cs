@@ -180,6 +180,7 @@ namespace Uml.Robotics.Ros
                             if (!supprressWarning)
                             {
                                 logger.LogWarning(
+                                    ex,
                                     $"[{method}] Could not connect to master at [{host}:{port}]. Retrying for the next {RetryTimeout.TotalSeconds} seconds."
                                 );
                                 supprressWarning = true;

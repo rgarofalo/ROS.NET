@@ -47,7 +47,7 @@ namespace Uml.Robotics.Ros
                 }
                 catch (Exception e)
                 {
-                    logger.LogError("Caught exception in sim time thread: " + e.Message);
+                    logger.LogError(e, "Caught exception in sim time thread: " + e.Message);
                 }
             }).Start();
         }

@@ -132,7 +132,7 @@ namespace Uml.Robotics.XmlRpc
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError("XmlRpcServerConnection::readRequest: error while reading the rest of data ({0}).", ex.Message);
+                    logger.LogError(ex, "XmlRpcServerConnection::readRequest: error while reading the rest of data ({0}).", ex.Message);
                     return false;
                 }
                 header.Append(Encoding.ASCII.GetString(data, 0, dataLen));
@@ -173,12 +173,12 @@ namespace Uml.Robotics.XmlRpc
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(string.Format("Exception while writing response: {0}", ex.Message));
+                    logger.LogError(ex, "Exception while writing response: {0}", ex.Message);
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError("XmlRpcServerConnection::WriteResponse: write error ({0}).", ex.Message);
+                logger.LogError(ex, "XmlRpcServerConnection::WriteResponse: write error ({0}).", ex.Message);
                 return false;
             }
 
