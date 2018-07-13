@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 
-
 namespace Uml.Robotics.Ros.Transforms
 {
     public class TimeCache
@@ -11,36 +10,36 @@ namespace Uml.Robotics.Ros.Transforms
         private const uint MAX_LENGTH_LINKED_LIST = 10000000;
         private const Int64 DEFAULT_MAX_STORAGE_TIME = 1000000000;
 
-        private ulong max_storage_time;
         private readonly SortedList<ulong, TransformStorage> storage = new SortedList<ulong, TransformStorage>();
+        private ulong maxStorageTime;
 
         public TimeCache()
             : this(DEFAULT_MAX_STORAGE_TIME)
         {
         }
 
-        public TimeCache(ulong max_storage_time)
+        public TimeCache(ulong maxStorageTime)
         {
-            this.max_storage_time = max_storage_time;
+            this.maxStorageTime = maxStorageTime;
         }
 
-        public static ulong toLong(TimeData td)
+        public static ulong ToLong(TimeData timeData)
         {
-            return (ulong)td.Ticks;
+            return (ulong)timeData.Ticks;
         }
 
-        private int findClosest(ref TransformStorage one, ref TransformStorage two, ulong target_time, out string error_str)
+        private int FindClosest(ref TransformStorage one, ref TransformStorage two, ulong targetTime, out string errorMessage)
         {
-            error_str = null;
+            errorMessage = null;
             lock (storage)
             {
                 if (storage.Count == 0)
                 {
-                    error_str = createEmptyException();
+                    errorMessage = CreateEmptyException();
                     return 0;
                 }
 
-                if (target_time == 0)
+                if (targetTime == 0)
                 {
                     one = storage.Last().Value;
                     return 1;
@@ -49,35 +48,35 @@ namespace Uml.Robotics.Ros.Transforms
                 if (storage.Count == 1)
                 {
                     TransformStorage ts = storage.First().Value;
-                    if (ts.stamp == target_time)
+                    if (ts.Stamp == targetTime)
                     {
                         one = ts;
                         return 1;
                     }
-                    error_str = createExtrapolationException1(target_time, ts.stamp);
+                    errorMessage = CreateExtrapolationException1(targetTime, ts.Stamp);
                     return 0;
                 }
 
-                ulong latest_time = storage.Last().Key;
-                ulong earliest_time = storage.First().Key;
-                if (target_time == latest_time)
+                ulong latestTime = storage.Last().Key;
+                ulong earliestTime = storage.First().Key;
+                if (targetTime == latestTime)
                 {
                     one = storage.Last().Value;
                     return 1;
                 }
-                if (target_time == earliest_time)
+                if (targetTime == earliestTime)
                 {
                     one = storage.First().Value;
                     return 1;
                 }
-                if (target_time > latest_time)
+                if (targetTime > latestTime)
                 {
-                    error_str = createExtrapolationException2(target_time, latest_time);
+                    errorMessage = CreateExtrapolationException2(targetTime, latestTime);
                     return 0;
                 }
-                if (target_time < earliest_time)
+                if (targetTime < earliestTime)
                 {
-                    error_str = createExtrapolationException3(target_time, earliest_time);
+                    errorMessage = CreateExtrapolationException3(targetTime, earliestTime);
                     return 0;
                 }
 
@@ -86,7 +85,7 @@ namespace Uml.Robotics.Ros.Transforms
                 {
                     // look for the first keyvaluepair in the sorted list with a key greater than our target.
                     // if it is the last keyvaluepair's key, aka, the highest stamp
-                    if (kvp.Key <= target_time)
+                    if (kvp.Key <= targetTime)
                     {
                         i = kvp.Key;
                         return false;
@@ -99,9 +98,9 @@ namespace Uml.Robotics.Ros.Transforms
             return 2;
         }
 
-        private void interpolate(TransformStorage one, TransformStorage two, ulong time, ref TransformStorage output)
+        private void Interpolate(TransformStorage one, TransformStorage two, ulong time, ref TransformStorage output)
         {
-            if (one.stamp == two.stamp)
+            if (one.Stamp == two.Stamp)
             {
                 output = two;
                 return;
@@ -110,35 +109,35 @@ namespace Uml.Robotics.Ros.Transforms
             if (output == null)
                 output = new TransformStorage();
 
-            double ratio = (time - one.stamp) / (two.stamp - one.stamp);
-            output.translation.setInterpolate3(one.translation, two.translation, ratio);
-            output.rotation = slerp(one.rotation, two.rotation, ratio);
-            output.stamp = one.stamp;
-            output.frame_id = one.frame_id;
-            output.child_frame_id = one.child_frame_id;
+            double ratio = (time - one.Stamp) / (two.Stamp - one.Stamp);
+            output.Translation = Vector3.Lerp(one.Translation, two.Translation, ratio);
+            output.Rotation = Slerp(one.Rotation, two.Rotation, ratio);
+            output.Stamp = one.Stamp;
+            output.FrameId = one.FrameId;
+            output.ChildFrameId = one.ChildFrameId;
         }
 
-        private Quaternion slerp(Quaternion q1, Quaternion q2, double rt)
+        private Quaternion Slerp(Quaternion q1, Quaternion q2, double rt)
         {
-            return q1.slerp(q2, rt);
+            return q1.Slerp(q2, rt);
         }
 
-        private void pruneList()
+        private void PruneList()
         {
             ulong latest_time = storage.Last().Key;
-            while (storage.Count > 0 && storage.First().Key + max_storage_time < latest_time || storage.Count > MAX_LENGTH_LINKED_LIST)
+            while (storage.Count > 0 && storage.First().Key + maxStorageTime < latest_time || storage.Count > MAX_LENGTH_LINKED_LIST)
                 storage.RemoveAt(0);
         }
 
-        public bool getData(TimeData time_, ref TransformStorage data_out, out string error_str)
+        public bool GetData(TimeData time_, ref TransformStorage data_out, out string error_str)
         {
-            return getData(toLong(time_), ref data_out, out error_str);
+            return GetData(ToLong(time_), ref data_out, out error_str);
         }
 
-        public bool getData(ulong time_, ref TransformStorage data_out, out string error_str)
+        public bool GetData(ulong time_, ref TransformStorage data_out, out string error_str)
         {
             TransformStorage temp1 = null, temp2 = null;
-            int num_nodes = findClosest(ref temp1, ref temp2, time_, out error_str);
+            int num_nodes = FindClosest(ref temp1, ref temp2, time_, out error_str);
             switch (num_nodes)
             {
                 case 0:
@@ -147,9 +146,9 @@ namespace Uml.Robotics.Ros.Transforms
                     data_out = temp1;
                     break;
                 case 2:
-                    if (temp1.frame_id == temp2.frame_id)
+                    if (temp1.FrameId == temp2.FrameId)
                     {
-                        interpolate(temp1, temp2, time_, ref data_out);
+                        Interpolate(temp1, temp2, time_, ref data_out);
                     }
                     else
                     {
@@ -162,24 +161,24 @@ namespace Uml.Robotics.Ros.Transforms
             return true;
         }
 
-        public bool insertData(TransformStorage new_data)
+        public bool InsertData(TransformStorage newData)
         {
             lock (storage)
             {
-                if (storage.Count > 0 && storage.First().Key > new_data.stamp + max_storage_time)
+                if (storage.Count > 0 && storage.First().Key > newData.Stamp + maxStorageTime)
                 {
                     if (!SimTime.Instance.IsTimeSimulated)
                         return false;
 
                     storage.Clear();
                 }
-                storage[new_data.stamp] = new_data;
-                pruneList();
+                storage[newData.Stamp] = newData;
+                PruneList();
             }
             return true;
         }
 
-        public void clearList()
+        public void ClearList()
         {
             lock (storage)
             {
@@ -187,41 +186,43 @@ namespace Uml.Robotics.Ros.Transforms
             }
         }
 
-        public uint getParent(ulong time, out string error_str)
+        public uint GetParent(ulong time, out string errorMessage)
         {
             TransformStorage temp1 = null, temp2 = null;
-            int num_nodes = findClosest(ref temp1, ref temp2, time, out error_str);
+            int num_nodes = FindClosest(ref temp1, ref temp2, time, out errorMessage);
             if (num_nodes == 0)
                 return 0;
 
-            return temp1.frame_id;
+            return temp1.FrameId;
         }
 
-        public uint getParent(TimeData time_, out string error_str)
+        public uint GetParent(TimeData time_, out string errorMessage)
         {
-            return getParent(toLong(time_), out error_str);
+            return GetParent(ToLong(time_), out errorMessage);
         }
 
-        public TimeAndFrameID getLatestTimeAndParent()
+        public TimeAndFrameId GetLatestTimeAndParent()
         {
             lock (storage)
             {
                 if (storage.Count == 0)
                 {
-                    return new TimeAndFrameID(0, 0);
+                    return new TimeAndFrameId(0, 0);
                 }
                 TransformStorage ts = storage.Last().Value;
-                return new TimeAndFrameID(ts.stamp, ts.frame_id);
+                return new TimeAndFrameId(ts.Stamp, ts.FrameId);
             }
         }
 
-        public uint getListLength()
+        public uint GetListLength()
         {
-            lock(storage)
+            lock (storage)
+            {
                 return (uint)storage.Count;
+            }
         }
 
-        public ulong getLatestTimeStamp()
+        public ulong GetLatestTimeStamp()
         {
             lock (storage)
             {
@@ -231,7 +232,7 @@ namespace Uml.Robotics.Ros.Transforms
             }
         }
 
-        public ulong getOldestTimestamp()
+        public ulong GetOldestTimestamp()
         {
             lock (storage)
             {
@@ -241,22 +242,22 @@ namespace Uml.Robotics.Ros.Transforms
             }
         }
 
-        private string createEmptyException()
+        private string CreateEmptyException()
         {
             return "Cache is empty!";
         }
 
-        private string createExtrapolationException1(ulong t0, ulong t1)
+        private string CreateExtrapolationException1(ulong t0, ulong t1)
         {
             return "Lookup would require extrapolation at time \n" + t0 + ", but only time \n" + t1 + " is in the buffer";
         }
 
-        private string createExtrapolationException2(ulong t0, ulong t1)
+        private string CreateExtrapolationException2(ulong t0, ulong t1)
         {
             return "Lookup would require extrapolation into the future. Requested time \n" + t0 + " but the latest data is at the time \n" + t1;
         }
 
-        private string createExtrapolationException3(ulong t0, ulong t1)
+        private string CreateExtrapolationException3(ulong t0, ulong t1)
         {
             return "Lookup would require extrapolation into the past. Requested time \n" + t0 + " but the earliest data is at the time \n" + t1;
         }

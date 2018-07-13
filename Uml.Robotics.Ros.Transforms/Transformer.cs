@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using Messages.std_msgs;
 using Messages.tf;
@@ -68,7 +66,7 @@ namespace Uml.Robotics.Ros.Transforms
         public void clear()
         {
             foreach (TimeCache tc in frames.Values)
-                tc.clearList();
+                tc.ClearList();
             frameIDs.Clear();
             frameids_reverse.Clear();
         }
@@ -117,33 +115,33 @@ namespace Uml.Robotics.Ros.Transforms
             if (mapped_tgt == mapped_src)
             {
                 transform = new Transform();
-                transform.origin = new Vector3();
-                transform.basis = new Quaternion();
-                transform.child_frame_id = mapped_src;
-                transform.frame_id = mapped_tgt;
-                transform.stamp = DateTime.UtcNow.ToTimeMessage();
+                transform.Origin = new Vector3();
+                transform.Basis = new Quaternion();
+                transform.ChildFrameId = mapped_src;
+                transform.FrameId = mapped_tgt;
+                transform.Stamp = DateTime.UtcNow.ToTimeMessage();
                 return true;
             }
 
-            TF_STATUS retval;
+            TfStatus retval;
             uint target_id = getFrameIDInternal(mapped_tgt);
             uint source_id = getFrameIDInternal(mapped_src);
 
             TransformAccum accum = new TransformAccum();
 
-            retval = walkToTopParent(accum, TimeCache.toLong(time.data), target_id, source_id, out error_string);
-            if (retval != TF_STATUS.NO_ERROR)
+            retval = walkToTopParent(accum, TimeCache.ToLong(time.data), target_id, source_id, out error_string);
+            if (retval != TfStatus.NoError)
             {
                 error_string = error_string ?? "UNSPECIFIED";
                 switch (retval)
                 {
-                    case TF_STATUS.CONNECTIVITY_ERROR:
+                    case TfStatus.ConnectivityError:
                         error_string = "NO CONNECTIONSZSZ: " + error_string;
                         break;
-                    case TF_STATUS.EXTRAPOLATION_ERROR:
+                    case TfStatus.ExtrapolationError:
                         error_string = "EXTRAPOLATION: " + error_string;
                         break;
-                    case TF_STATUS.LOOKUP_ERROR:
+                    case TfStatus.LookupError:
                         error_string = "LOOKUP: " + error_string;
                         break;
                     default:
@@ -157,79 +155,79 @@ namespace Uml.Robotics.Ros.Transforms
             if (accum.result_vec != null && accum.result_quat != null)
             {
                 transform = new Transform();
-                transform.origin = accum.result_vec;
-                transform.basis = accum.result_quat;
-                transform.child_frame_id = mapped_src;
-                transform.frame_id = mapped_tgt;
-                transform.stamp = new Time(TimeData.FromTicks((long)accum.time));
+                transform.Origin = accum.result_vec;
+                transform.Basis = accum.result_quat;
+                transform.ChildFrameId = mapped_src;
+                transform.FrameId = mapped_tgt;
+                transform.Stamp = new Time(TimeData.FromTicks((long)accum.time));
             }
-            return retval == TF_STATUS.NO_ERROR;
+            return retval == TfStatus.NoError;
         }
 
         public void transformQuaternion(string target_frame, Stamped<Quaternion> stamped_in, ref Stamped<Quaternion> stamped_out)
         {
             Transform trans = new Transform();
-            lookupTransform(target_frame, stamped_in.frame_id, stamped_in.stamp, out trans);
+            lookupTransform(target_frame, stamped_in.FrameId, stamped_in.Stamp, out trans);
             if (stamped_out == null)
                 stamped_out = new Stamped<Quaternion>();
-            stamped_out.data = trans * stamped_in.data;
-            stamped_out.stamp = trans.stamp;
-            stamped_out.frame_id = target_frame;
+            stamped_out.Data = trans * stamped_in.Data;
+            stamped_out.Stamp = trans.Stamp;
+            stamped_out.FrameId = target_frame;
         }
 
         public void transformQuaternion(string target_frame, Stamped<Messages.geometry_msgs.Quaternion> stamped_in,
             ref Stamped<Messages.geometry_msgs.Quaternion> stamped_out)
         {
-            Stamped<Quaternion> quatin = new Stamped<Quaternion>(stamped_in.stamp, stamped_in.frame_id, new Quaternion(stamped_in.data));
-            Stamped<Quaternion> quatout = new Stamped<Quaternion>(stamped_out.stamp, stamped_out.frame_id, new Quaternion(stamped_out.data));
+            Stamped<Quaternion> quatin = new Stamped<Quaternion>(stamped_in.Stamp, stamped_in.FrameId, new Quaternion(stamped_in.Data));
+            Stamped<Quaternion> quatout = new Stamped<Quaternion>(stamped_out.Stamp, stamped_out.FrameId, new Quaternion(stamped_out.Data));
             transformQuaternion(target_frame, quatin, ref quatout);
             if (stamped_out == null)
                 stamped_out = new Stamped<Messages.geometry_msgs.Quaternion>();
-            stamped_out.stamp = quatout.stamp;
-            stamped_out.data = quatout.data.ToMsg();
-            stamped_out.frame_id = quatout.frame_id;
+            stamped_out.Stamp = quatout.Stamp;
+            stamped_out.Data = quatout.Data.ToMsg();
+            stamped_out.FrameId = quatout.FrameId;
         }
 
         public void transformVector(string target_frame, Stamped<Vector3> stamped_in, ref Stamped<Vector3> stamped_out)
         {
             Transform trans = new Transform();
-            lookupTransform(target_frame, stamped_in.frame_id, stamped_in.stamp, out trans);
-            Vector3 end = stamped_in.data;
+            lookupTransform(target_frame, stamped_in.FrameId, stamped_in.Stamp, out trans);
+            Vector3 end = stamped_in.Data;
             Vector3 origin = new Vector3(0, 0, 0);
             Vector3 output = (trans * end) - (trans * origin);
             if (stamped_out == null)
                 stamped_out = new Stamped<Vector3>();
-            stamped_out.data = output;
-            stamped_out.stamp = trans.stamp;
-            stamped_out.frame_id = target_frame;
+            stamped_out.Data = output;
+            stamped_out.Stamp = trans.Stamp;
+            stamped_out.FrameId = target_frame;
         }
 
         public void transformVector(string target_frame, Stamped<Messages.geometry_msgs.Vector3> stamped_in,
             ref Stamped<Messages.geometry_msgs.Vector3> stamped_out)
         {
-            Stamped<Vector3> vecin = new Stamped<Vector3>(stamped_in.stamp, stamped_in.frame_id, new Vector3(stamped_in.data));
-            Stamped<Vector3> vecout = new Stamped<Vector3>(stamped_out.stamp, stamped_out.frame_id, new Vector3(stamped_out.data));
+            Stamped<Vector3> vecin = new Stamped<Vector3>(stamped_in.Stamp, stamped_in.FrameId, new Vector3(stamped_in.Data));
+            Stamped<Vector3> vecout = new Stamped<Vector3>(stamped_out.Stamp, stamped_out.FrameId, new Vector3(stamped_out.Data));
             transformVector(target_frame, vecin, ref vecout);
             if (stamped_out == null)
                 stamped_out = new Stamped<Messages.geometry_msgs.Vector3>();
-            stamped_out.stamp = vecout.stamp;
-            stamped_out.data = vecout.data.ToMsg();
-            stamped_out.frame_id = vecout.frame_id;
+            stamped_out.Stamp = vecout.Stamp;
+            stamped_out.Data = vecout.Data.ToMsg();
+            stamped_out.FrameId = vecout.FrameId;
         }
 
-        public TF_STATUS walkToTopParent<F>(F f, ulong time, uint target_id, uint source_id, out string error_str) where F : ATransformAccum
+        public TfStatus walkToTopParent<F>(F f, ulong time, uint target_id, uint source_id, out string error_str) where F : ATransformAccum
         {
             error_str = null;
 
             if (target_id == source_id)
             {
-                f.finalize(WalkEnding.Identity, time);
-                return TF_STATUS.NO_ERROR;
+                f.Finalize(WalkEnding.Identity, time);
+                return TfStatus.NoError;
             }
             if (time == 0)
             {
-                TF_STATUS retval = getLatestCommonTime(target_id, source_id, ref time, out error_str);
-                if (retval != TF_STATUS.NO_ERROR)
+                TfStatus retval = getLatestCommonTime(target_id, source_id, ref time, out error_str);
+                if (retval != TfStatus.NoError)
                     return retval;
             }
             uint frame = source_id;
@@ -243,7 +241,7 @@ namespace Uml.Robotics.Ros.Transforms
                     break;
                 }
                 TimeCache cache = frames[frame];
-                uint parent = f.gather(cache, time, out error_str);
+                uint parent = f.Gather(cache, time, out error_str);
                 if (parent == 0)
                 {
                     top_parent = frame;
@@ -252,11 +250,11 @@ namespace Uml.Robotics.Ros.Transforms
 
                 if (frame == target_id)
                 {
-                    f.finalize(WalkEnding.TargetParentOfSource, time);
-                    return TF_STATUS.NO_ERROR;
+                    f.Finalize(WalkEnding.TargetParentOfSource, time);
+                    return TfStatus.NoError;
                 }
 
-                f.accum(true);
+                f.Accum(true);
 
                 top_parent = frame;
                 frame = parent;
@@ -267,7 +265,7 @@ namespace Uml.Robotics.Ros.Transforms
                     {
                         error_str = "The tf tree is invalid because it contains a loop.";
                     }
-                    return TF_STATUS.LOOKUP_ERROR;
+                    return TfStatus.LookupError;
                 }
             }
 
@@ -279,7 +277,7 @@ namespace Uml.Robotics.Ros.Transforms
                     break;
                 TimeCache cache = frames[frame];
 
-                uint parent = f.gather(cache, time, out error_str);
+                uint parent = f.Gather(cache, time, out error_str);
 
                 if (parent == 0)
                 {
@@ -287,16 +285,16 @@ namespace Uml.Robotics.Ros.Transforms
                     {
                         error_str += ", when looking up transform from frame [" + frameids_reverse[source_id] + "] to [" + frameids_reverse[target_id] + "]";
                     }
-                    return TF_STATUS.EXTRAPOLATION_ERROR;
+                    return TfStatus.ExtrapolationError;
                 }
 
                 if (frame == source_id)
                 {
-                    f.finalize(WalkEnding.SourceParentOfTarget, time);
-                    return TF_STATUS.NO_ERROR;
+                    f.Finalize(WalkEnding.SourceParentOfTarget, time);
+                    return TfStatus.NoError;
                 }
 
-                f.accum(false);
+                f.Accum(false);
 
                 frame = parent;
                 ++depth;
@@ -306,7 +304,7 @@ namespace Uml.Robotics.Ros.Transforms
                     {
                         error_str = "The tf tree is invalid because it contains a loop.";
                     }
-                    return TF_STATUS.LOOKUP_ERROR;
+                    return TfStatus.LookupError;
                 }
             }
 
@@ -314,24 +312,24 @@ namespace Uml.Robotics.Ros.Transforms
             {
                 if (error_str != null)
                     error_str = "" + frameids_reverse[source_id] + " DOES NOT CONNECT TO " + frameids_reverse[target_id];
-                return TF_STATUS.CONNECTIVITY_ERROR;
+                return TfStatus.ConnectivityError;
             }
 
-            f.finalize(WalkEnding.FullPath, time);
+            f.Finalize(WalkEnding.FullPath, time);
 
-            return TF_STATUS.NO_ERROR;
+            return TfStatus.NoError;
         }
 
-        private TF_STATUS getLatestCommonTime(uint target_id, uint source_id, ref ulong time, out string error_str)
+        private TfStatus getLatestCommonTime(uint target_id, uint source_id, ref ulong time, out string error_str)
         {
             error_str = null;
             if (target_id == source_id)
             {
-                time = TimeCache.toLong(ROS.GetTime().data);
-                return TF_STATUS.NO_ERROR;
+                time = TimeCache.ToLong(ROS.GetTime().data);
+                return TfStatus.NoError;
             }
 
-            List<TimeAndFrameID> lct = new List<TimeAndFrameID>();
+            List<TimeAndFrameId> lct = new List<TimeAndFrameId>();
 
             uint frame = source_id;
             uint depth = 0;
@@ -341,19 +339,19 @@ namespace Uml.Robotics.Ros.Transforms
                 TimeCache cache;
                 if (!frames.ContainsKey(frame)) break;
                 cache = frames[frame];
-                TimeAndFrameID latest = cache.getLatestTimeAndParent();
-                if (latest.frame_id == 0)
+                TimeAndFrameId latest = cache.GetLatestTimeAndParent();
+                if (latest.FrameId == 0)
                     break;
-                if (latest.time != 0)
-                    common_time = Math.Min(latest.time, common_time);
+                if (latest.Time != 0)
+                    common_time = Math.Min(latest.Time, common_time);
                 lct.Add(latest);
-                frame = latest.frame_id;
+                frame = latest.FrameId;
                 if (frame == target_id)
                 {
                     time = common_time;
                     if (time == ulong.MaxValue)
                         time = 0;
-                    return TF_STATUS.NO_ERROR;
+                    return TfStatus.NoError;
                 }
                 ++depth;
                 if (depth > MAX_GRAPH_DEPTH)
@@ -362,7 +360,7 @@ namespace Uml.Robotics.Ros.Transforms
                     {
                         error_str = "The tf tree is invalid because it contains a loop.";
                     }
-                    return TF_STATUS.LOOKUP_ERROR;
+                    return TfStatus.LookupError;
                 }
             }
 
@@ -376,19 +374,19 @@ namespace Uml.Robotics.Ros.Transforms
                 if (!frames.ContainsKey(frame))
                     break;
                 cache = frames[frame];
-                TimeAndFrameID latest = cache.getLatestTimeAndParent();
-                if (latest.frame_id == 0)
+                TimeAndFrameId latest = cache.GetLatestTimeAndParent();
+                if (latest.FrameId == 0)
                     break;
-                if (latest.time != 0)
-                    common_time = Math.Min(latest.time, common_time);
+                if (latest.Time != 0)
+                    common_time = Math.Min(latest.Time, common_time);
 
-                foreach (TimeAndFrameID tf in lct)
-                    if (tf.frame_id == latest.frame_id)
+                foreach (TimeAndFrameId tf in lct)
+                    if (tf.FrameId == latest.FrameId)
                     {
-                        common_parent = tf.frame_id;
+                        common_parent = tf.FrameId;
                         break;
                     }
-                frame = latest.frame_id;
+                frame = latest.FrameId;
 
                 if (frame == source_id)
                 {
@@ -397,7 +395,7 @@ namespace Uml.Robotics.Ros.Transforms
                     {
                         time = 0;
                     }
-                    return TF_STATUS.NO_ERROR;
+                    return TfStatus.NoError;
                 }
                 ++depth;
                 if (depth > MAX_GRAPH_DEPTH)
@@ -406,25 +404,25 @@ namespace Uml.Robotics.Ros.Transforms
                     {
                         error_str = "The tf tree is invalid because it contains a loop.";
                     }
-                    return TF_STATUS.LOOKUP_ERROR;
+                    return TfStatus.LookupError;
                 }
             }
             if (common_parent == 0)
             {
                 error_str = "" + frameids_reverse[source_id] + " DOES NOT CONNECT TO " + frameids_reverse[target_id];
-                return TF_STATUS.CONNECTIVITY_ERROR;
+                return TfStatus.ConnectivityError;
             }
             for (int i = 0; i < lct.Count; i++)
             {
-                if (lct[i].time != 0)
-                    common_time = Math.Min(common_time, lct[i].time);
-                if (lct[i].frame_id == common_parent)
+                if (lct[i].Time != 0)
+                    common_time = Math.Min(common_time, lct[i].Time);
+                if (lct[i].FrameId == common_parent)
                     break;
             }
             if (common_time == uint.MaxValue)
                 common_time = 0;
             time = common_time;
-            return TF_STATUS.NO_ERROR;
+            return TfStatus.NoError;
         }
 
         public uint lookupOrInsertFrameNumber(string frame)
@@ -439,18 +437,18 @@ namespace Uml.Robotics.Ros.Transforms
 
         public bool setTransform(Transform transform)
         {
-            Transform mapped_transform = new Transform(transform.basis, transform.origin, transform.stamp, transform.frame_id, transform.child_frame_id);
-            mapped_transform.child_frame_id = resolve(tf_prefix, transform.child_frame_id);
-            mapped_transform.frame_id = resolve(tf_prefix, transform.frame_id);
+            Transform mapped_transform = new Transform(transform.Basis, transform.Origin, transform.Stamp, transform.FrameId, transform.ChildFrameId);
+            mapped_transform.ChildFrameId = resolve(tf_prefix, transform.ChildFrameId);
+            mapped_transform.FrameId = resolve(tf_prefix, transform.FrameId);
 
-            if (mapped_transform.child_frame_id == mapped_transform.frame_id)
+            if (mapped_transform.ChildFrameId == mapped_transform.FrameId)
                 return false;
-            if (mapped_transform.child_frame_id == "/")
+            if (mapped_transform.ChildFrameId == "/")
                 return false;
-            if (mapped_transform.frame_id == "/")
+            if (mapped_transform.FrameId == "/")
                 return false;
-            uint frame_number = lookupOrInsertFrameNumber(mapped_transform.frame_id);
-            uint child_frame_number = lookupOrInsertFrameNumber(mapped_transform.child_frame_id);
+            uint frame_number = lookupOrInsertFrameNumber(mapped_transform.FrameId);
+            uint child_frame_number = lookupOrInsertFrameNumber(mapped_transform.ChildFrameId);
             TimeCache parent_frame = null, frame = null;
             if (!frames.ContainsKey(frame_number))
             {
@@ -465,7 +463,7 @@ namespace Uml.Robotics.Ros.Transforms
                 //if we're revising a frame, that was previously labelled as having no parent, clear that knowledge from the time cache
                 frame = frames[child_frame_number];
             }
-            return frame.insertData(new TransformStorage(mapped_transform, frame_number, child_frame_number));
+            return frame.InsertData(new TransformStorage(mapped_transform, frame_number, child_frame_number));
         }
 
         public bool waitForTransform(string target_frame, string source_frame, Time time, Duration timeout, out string error_msg)
@@ -559,7 +557,7 @@ namespace Uml.Robotics.Ros.Transforms
                 return false;
 
             CanTransformAccum accum = new CanTransformAccum();
-            if (walkToTopParent(accum, TimeCache.toLong(time.data), target_id, source_id, out error_msg) == TF_STATUS.NO_ERROR)
+            if (walkToTopParent(accum, TimeCache.ToLong(time.data), target_id, source_id, out error_msg) == TfStatus.NoError)
             {
                 return true;
             }

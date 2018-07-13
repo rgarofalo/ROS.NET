@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Uml.Robotics.Ros.Transforms
 {
     public class Quaternion
     {
-        public double w, x, y, z;
+        public double W, X, Y, Z;
 
         public Quaternion()
             : this(0, 0, 0, 1)
@@ -15,14 +13,14 @@ namespace Uml.Robotics.Ros.Transforms
 
         public Quaternion(double x, double y, double z, double w)
         {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.w = w;
+            this.X = x;
+            this.Y = y;
+            this.Z = z;
+            this.W = w;
         }
 
         public Quaternion(Quaternion shallow)
-            : this(shallow.x, shallow.y, shallow.z, shallow.w)
+            : this(shallow.X, shallow.Y, shallow.Z, shallow.W)
         {
         }
 
@@ -33,17 +31,17 @@ namespace Uml.Robotics.Ros.Transforms
 
         public Messages.geometry_msgs.Quaternion ToMsg()
         {
-            return new Messages.geometry_msgs.Quaternion { w = w, x = x, y = y, z = z };
+            return new Messages.geometry_msgs.Quaternion { w = W, x = X, y = Y, z = Z };
         }
 
         public static Quaternion operator +(Quaternion v1, Quaternion v2)
         {
-            return new Quaternion(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w);
+            return new Quaternion(v1.X + v2.X, v1.Y + v2.Y, v1.Z + v2.Z, v1.W + v2.W);
         }
 
         public static Quaternion operator -(Quaternion v1)
         {
-            return new Quaternion(-v1.x, -v1.y, -v1.z, -v1.w);
+            return new Quaternion(-v1.X, -v1.Y, -v1.Z, -v1.W);
         }
 
         public static Quaternion operator -(Quaternion v1, Quaternion v2)
@@ -63,7 +61,7 @@ namespace Uml.Robotics.Ros.Transforms
 
         public static Quaternion operator *(Quaternion v1, double d)
         {
-            return new Quaternion(v1.x * d, v1.y * d, v1.z * d, v1.w * d);
+            return new Quaternion(v1.X * d, v1.Y * d, v1.Z * d, v1.W * d);
         }
 
         public static Quaternion operator *(float d, Quaternion v1)
@@ -83,15 +81,15 @@ namespace Uml.Robotics.Ros.Transforms
 
         public static Quaternion operator *(Quaternion v1, Quaternion v2)
         {
-            return new Quaternion(v1.x * v2.w + v1.y * v2.z - v1.z * v2.y + v1.w * v2.x,
-                                    -v1.x * v2.z + v1.y * v2.w + v1.z * v2.x + v1.w * v2.y,
-                                    v1.x * v2.y - v1.y * v2.x + v1.z * v2.w + v1.w * v2.z,
-                                    -v1.x * v2.x - v1.y * v2.y - v1.z * v2.z + v1.w * v2.w);
+            return new Quaternion(v1.X * v2.W + v1.Y * v2.Z - v1.Z * v2.Y + v1.W * v2.X,
+                                    -v1.X * v2.Z + v1.Y * v2.W + v1.Z * v2.X + v1.W * v2.Y,
+                                    v1.X * v2.Y - v1.Y * v2.X + v1.Z * v2.W + v1.W * v2.Z,
+                                    -v1.X * v2.X - v1.Y * v2.Y - v1.Z * v2.Z + v1.W * v2.W);
         }
 
         public static Quaternion operator *(Quaternion v1, Vector3 v2)
         {
-            return v1 * new Quaternion(v2.x, v2.y, v2.z, 0.0) * v1.inverse();
+            return v1 * new Quaternion(v2.X, v2.Y, v2.Z, 0.0) * v1.Inverse();
         }
 
         public static Quaternion operator /(Quaternion v1, float s)
@@ -109,57 +107,49 @@ namespace Uml.Robotics.Ros.Transforms
             return v1 * (1.0 / s);
         }
 
-        public Quaternion inverse()
+        public Quaternion Inverse()
         {
-            return new Quaternion(-x / norm, -y / norm, -z / norm, w / norm);
+            return new Quaternion(-X / Norm, -Y / Norm, -Z / Norm, W / Norm);
         }
 
-        public double dot(Quaternion q)
+        public double Dot(Quaternion q)
         {
-            return x * q.x + y * q.y + z * q.z + w * q.w;
+            return X * q.X + Y * q.Y + Z * q.Z + W * q.W;
         }
 
-        public double length2()
-        {
-            return abs * abs;
-        }
+        public double Length2 => Abs * Abs;
 
-        public double length()
-        {
-            return abs;
-        }
+        public double Length =>
+            Abs;
 
-        public double norm
-        {
-            get { return (x * x) + (y * y) + (z * z) + (w * w); }
-        }
+        public double Norm =>
+            (X * X) + (Y * Y) + (Z * Z) + (W * W);
 
-        public double abs
-        {
-            get { return Math.Sqrt(norm); }
-        }
+        public double Abs =>
+            Math.Sqrt(Norm);
 
-        public double angle
-        {
-            get { return Math.Acos(w / abs) * 2.0; }
-        }
+        public double Angle =>
+            Math.Acos(W / Abs) * 2.0;
 
         public override string ToString()
         {
-            return string.Format("quat=({0:F4},{1:F4},{2:F4},{3:F4})" /*, rpy={4}"*/, w, x, y, z /*, getRPY()*/);
+            return string.Format("quat=({0:F4},{1:F4},{2:F4},{3:F4})", W, X, Y, Z);
         }
 
-        public Vector3 getRPY()
+        public Vector3 RPY
         {
-            Vector3 tmp = new Matrix3x3(this).getYPR();
-            return new Vector3(tmp.z, tmp.y, tmp.x);
+            get
+            {
+                Vector3 tmp = new Matrix3x3(this).GetYPR();
+                return new Vector3(tmp.Z, tmp.Y, tmp.X);
+            }
         }
 
         public static Quaternion FromRPY(Vector3 rpy)
         {
-            double halfroll = rpy.x / 2;
-            double halfpitch = rpy.y / 2;
-            double halfyaw = rpy.z / 2;
+            double halfroll = rpy.X / 2;
+            double halfpitch = rpy.Y / 2;
+            double halfyaw = rpy.Z / 2;
 
             double sin_r2 = Math.Sin(halfroll);
             double sin_p2 = Math.Sin(halfpitch);
@@ -177,37 +167,37 @@ namespace Uml.Robotics.Ros.Transforms
             );
         }
 
-        public double angleShortestPath(Quaternion q)
+        public double AngleShortestPath(Quaternion q)
         {
-            double s = Math.Sqrt(length2() * q.length2());
-            if (dot(q) < 0) // Take care of long angle case see http://en.wikipedia.org/wiki/Slerp
+            double s = Math.Sqrt(this.Length2 * q.Length2);
+            if (Dot(q) < 0) // Take care of long angle case see http://en.wikipedia.org/wiki/Slerp
             {
-                return Math.Acos(dot(-q) / s) * 2.0;
+                return Math.Acos(Dot(-q) / s) * 2.0;
             }
-            return Math.Acos(dot(q) / s) * 2.0;
+            return Math.Acos(Dot(q) / s) * 2.0;
         }
 
-        public Quaternion slerp(Quaternion q, double t)
+        public Quaternion Slerp(Quaternion q, double t)
         {
-            double theta = angleShortestPath(q);
+            double theta = AngleShortestPath(q);
             if (theta != 0)
             {
                 double d = 1.0 / Math.Sin(theta);
                 double s0 = Math.Sin((1.0 - t) * theta);
                 double s1 = Math.Sin(t * theta);
-                if (dot(q) < 0) // Take care of long angle case see http://en.wikipedia.org/wiki/Slerp
+                if (Dot(q) < 0) // Take care of long angle case see http://en.wikipedia.org/wiki/Slerp
                 {
                     return new Quaternion(
-                        (x * s0 + -1 * q.x * s1) * d,
-                        (y * s0 + -1 * q.y * s1) * d,
-                        (z * s0 + -1 * q.z * s1) * d,
-                        (w * s0 + -1 * q.w * s1) * d);
+                        (X * s0 + -1 * q.X * s1) * d,
+                        (Y * s0 + -1 * q.Y * s1) * d,
+                        (Z * s0 + -1 * q.Z * s1) * d,
+                        (W * s0 + -1 * q.W * s1) * d);
                 }
                 return new Quaternion(
-                    (x * s0 + q.x * s1) * d,
-                    (y * s0 + q.y * s1) * d,
-                    (z * s0 + q.z * s1) * d,
-                    (w * s0 + q.w * s1) * d);
+                    (X * s0 + q.X * s1) * d,
+                    (Y * s0 + q.Y * s1) * d,
+                    (Z * s0 + q.Z * s1) * d,
+                    (W * s0 + q.W * s1) * d);
             }
             return new Quaternion(this);
         }

@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Uml.Robotics.Ros;
-using std_msgs = Messages.std_msgs;
+﻿using std_msgs = Messages.std_msgs;
 
 namespace Uml.Robotics.Ros.Transforms
 {
-    public enum TF_STATUS
+    public enum TfStatus
     {
-        NO_ERROR,
-        LOOKUP_ERROR,
-        CONNECTIVITY_ERROR,
-        EXTRAPOLATION_ERROR
+        NoError,
+        LookupError,
+        ConnectivityError,
+        ExtrapolationError
     }
 
     public enum WalkEnding
@@ -25,55 +20,55 @@ namespace Uml.Robotics.Ros.Transforms
 
     public class Stamped<T>
     {
-        public T data;
-        public string frame_id;
-        public std_msgs.Time stamp;
+        public T Data { get; set; }
+        public string FrameId { get; set; }
+        public std_msgs.Time Stamp { get; set; }
 
         public Stamped()
         {
         }
 
-        public Stamped(std_msgs.Time t, string f, T d)
+        public Stamped(std_msgs.Time stamp, string frameId, T data)
         {
-            stamp = t;
-            frame_id = f;
-            data = d;
+            this.Stamp = stamp;
+            this.FrameId = frameId;
+            this.Data = data;
         }
     }
 
-    public struct TimeAndFrameID
+    public struct TimeAndFrameId
     {
-        public uint frame_id;
-        public ulong time;
+        public uint FrameId { get; set; }
+        public ulong Time { get; set; }
 
-        public TimeAndFrameID(ulong t, uint f)
+        public TimeAndFrameId(ulong time, uint frameId)
         {
-            time = t;
-            frame_id = f;
+            this.Time = time;
+            this.FrameId = frameId;
         }
     }
 
     public class TransformStorage
     {
-        public uint child_frame_id;
-        public uint frame_id;
-        public Quaternion rotation;
-        public ulong stamp;
-        public Vector3 translation;
+        public uint ChildFrameId { get; set; }
+        public uint FrameId { get; set; }
+        public Quaternion Rotation { get; set; }
+        public ulong Stamp { get; set; }
+        public Vector3 Translation { get; set; }
 
         public TransformStorage()
         {
-            this.rotation = new Quaternion();
-            this.translation = new Vector3();
+            this.Rotation = new Quaternion();
+            this.Translation = new Vector3();
         }
 
         public TransformStorage(Transform data, uint frameId, uint childFrameId)
         {
-            this.rotation = data.basis;
-            this.translation = data.origin;
-            this.stamp = TimeCache.toLong(data.stamp.data);
-            this.frame_id = frameId;
-            this.child_frame_id = childFrameId;
+            this.Rotation = data.Basis;
+            this.Translation = data.Origin;
+            this.Stamp = TimeCache.ToLong(data.Stamp.data);
+            this.FrameId = frameId;
+            this.ChildFrameId = childFrameId;
         }
     }
 }
