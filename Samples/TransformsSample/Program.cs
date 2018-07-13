@@ -18,16 +18,16 @@ namespace Uml.Robotics.Ros.Samples
 
         private static tf.Transform testLookup(tf.Transform intendedResult)
         {
-            if (!tfer.waitForTransform(intendedResult.frame_id, intendedResult.child_frame_id, intendedResult.stamp,
+            if (!tfer.waitForTransform(intendedResult.FrameId, intendedResult.ChildFrameId, intendedResult.Stamp,
                 new Duration(new TimeData(1, 0)), null))
             {
                 return null;
             }
             var ret = new tf.Transform();
-            if (tfer.lookupTransform(intendedResult.frame_id, intendedResult.child_frame_id, intendedResult.stamp,
+            if (tfer.lookupTransform(intendedResult.FrameId, intendedResult.ChildFrameId, intendedResult.Stamp,
                 out ret))
             {
-                Console.WriteLine("***  " + intendedResult.frame_id + " ==> " + intendedResult.child_frame_id + " ***");
+                Console.WriteLine("***  " + intendedResult.FrameId+ " ==> " + intendedResult.ChildFrameId + " ***");
                 Console.WriteLine("********************** IDEAL *********************");
                 Console.WriteLine(intendedResult);
                 Console.WriteLine("********************** ACTUAL ********************");
@@ -69,10 +69,10 @@ namespace Uml.Robotics.Ros.Samples
                  */
                 tf.Transform result1 = new tf.Transform()
                 {
-                    basis = new tf.Quaternion(0, 0, 0, 1),
-                    origin = new tf.Vector3(0, -0.045, 0),
-                    child_frame_id = "camera_rgb_frame",
-                    frame_id = "camera_link"
+                    Basis = new tf.Quaternion(0, 0, 0, 1),
+                    Origin = new tf.Vector3(0, -0.045, 0),
+                    ChildFrameId = "camera_rgb_frame",
+                    FrameId = "camera_link"
                 };
 
                 /*
@@ -82,10 +82,10 @@ namespace Uml.Robotics.Ros.Samples
                 */
                 tf.Transform result2 = new tf.Transform()
                 {
-                    basis = new tf.Quaternion(-0.5, 0.5, -0.5, 0.5),
-                    origin = new tf.Vector3(0.0, 0.0, 0.0),
-                    child_frame_id = "camera_rgb_optical_frame",
-                    frame_id = "camera_rgb_frame"
+                    Basis = new tf.Quaternion(-0.5, 0.5, -0.5, 0.5),
+                    Origin = new tf.Vector3(0.0, 0.0, 0.0),
+                    ChildFrameId = "camera_rgb_optical_frame",
+                    FrameId = "camera_rgb_frame"
                 };
 
                 /*
@@ -95,10 +95,10 @@ namespace Uml.Robotics.Ros.Samples
                  */
                 tf.Transform result3 = new tf.Transform()
                 {
-                    basis = new tf.Quaternion(0, 0, 0, 1),
-                    origin = new tf.Vector3(0.0, -0.02, 0.0),
-                    child_frame_id = "camera_depth_frame",
-                    frame_id = "camera_link"
+                    Basis = new tf.Quaternion(0, 0, 0, 1),
+                    Origin = new tf.Vector3(0.0, -0.02, 0.0),
+                    ChildFrameId = "camera_depth_frame",
+                    FrameId = "camera_link"
                 };
 
                 /*
@@ -108,10 +108,10 @@ namespace Uml.Robotics.Ros.Samples
                  */
                 tf.Transform result4 = new tf.Transform()
                 {
-                    basis = new tf.Quaternion(-0.5, 0.5, -0.5, 0.5),
-                    origin = new tf.Vector3(0.0, 0.0, 0.0),
-                    child_frame_id = "camera_depth_optical_frame",
-                    frame_id = "camera_depth_frame"
+                    Basis = new tf.Quaternion(-0.5, 0.5, -0.5, 0.5),
+                    Origin = new tf.Vector3(0.0, 0.0, 0.0),
+                    ChildFrameId = "camera_depth_optical_frame",
+                    FrameId = "camera_depth_frame"
                 };
 
                 #endregion
