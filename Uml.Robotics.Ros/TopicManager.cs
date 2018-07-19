@@ -33,7 +33,7 @@ namespace Uml.Robotics.Ros
             instance = new Lazy<TopicManager>(LazyThreadSafetyMode.ExecutionAndPublication);
 
         private readonly ILogger logger = ApplicationLogging.CreateLogger<TopicManager>();
-        private object gate = new object();
+        private readonly object gate = new object();
         private bool shuttingDown;
         private List<Publication> advertisedTopics = new List<Publication>();
         private List<Subscription> subscriptions = new List<Subscription>();
@@ -164,18 +164,17 @@ namespace Uml.Robotics.Ros
         private bool IsValid<T>(AdvertiseOptions<T> ops) where T : RosMessage, new()
         {
             if (ops.dataType == "*")
-                throw new Exception("Advertising with * as the datatype is not allowed.  Topic [" + ops.topic + "]");
+                throw new Exception($"Advertising with * as the datatype is not allowed. Topic [{ops.topic}]");
             if (ops.md5Sum == "*")
-                throw new Exception("Advertising with * as the md5sum is not allowed.  Topic [" + ops.topic + "]");
+                throw new Exception($"Advertising with * as the md5sum is not allowed. Topic [{ops.topic}]");
             if (ops.md5Sum == "")
-                throw new Exception("Advertising on topic [" + ops.topic + "] with an empty md5sum");
+                throw new Exception($"Advertising on topic [{ops.topic}] with an empty md5sum");
             if (ops.dataType == "")
-                throw new Exception("Advertising on topic [" + ops.topic + "] with an empty datatype");
+                throw new Exception($"Advertising on topic [{ops.topic}] with an empty datatype");
             if (string.IsNullOrEmpty(ops.messageDefinition))
             {
                 this.logger.LogWarning(
-                    "Advertising on topic [" + ops.topic +
-                     "] with an empty message definition. Some tools may not work correctly"
+                    $"Advertising on topic [{ops.topic}] with an empty message definition. Some tools may not work correctly."
                 );
             }
             return true;
@@ -428,47 +427,34 @@ namespace Uml.Robotics.Ros
             return pub?.Latch ?? false;
         }
 
-        public bool Md5SumsMatch(string a, string b) =>
+        public static bool Md5SumsMatch(string a, string b) =>
             a == "*" || b == "*" || a == b;
 
-        public bool AddSubCallback(SubscribeOptions options)
+        private bool AddSubCallback(SubscribeOptions options)
         {
-            bool found = false;
-            bool foundTopic = false;
-            Subscription sub = null;
-
             if (shuttingDown)
                 return false;
 
-            foreach (Subscription s in subscriptions)
+            Subscription sub = subscriptions.FirstOrDefault(x => !x.IsDisposed && x.Name == options.topic);
+            if (sub == null)
+                return false;
+
+            if (!Md5SumsMatch(options.md5sum, sub.Md5Sum))
             {
-                sub = s;
-                if (!sub.IsDisposed && sub.Name == options.topic)
-                {
-                    foundTopic = true;
-                    if (Md5SumsMatch(options.md5sum, sub.Md5Sum))
-                        found = true;
-                    break;
-                }
+                throw new Exception(
+                    "Tried to subscribe to a topic with the same name but different MD5 sum as a topic that was already subscribed [" +
+                     options.datatype + "/" + options.md5sum + " vs. " + sub.DataType + "/" + sub.Md5Sum + "]"
+                );
             }
 
-            if (foundTopic && !found)
-            {
-                throw new Exception
-                    ("Tried to subscribe to a topic with the same name but different md5sum as a topic that was already subscribed [" +
-                     options.datatype + "/" + options.md5sum + " vs. " + sub.DataType + "/" +
-                     sub.Md5Sum+ "]");
-            }
-
-            if (found)
-            {
-                if (!sub.AddCallback(options.helper, options.md5sum, options.callback_queue, options.queue_size,
-                        options.allow_concurrent_callbacks, options.topic))
-                {
-                    return false;
-                }
-            }
-            return found;
+            return sub.AddCallback(
+                options.helper,
+                options.md5sum,
+                options.callback_queue,
+                options.queue_size,
+                options.allow_concurrent_callbacks,
+                options.topic
+            );
         }
 
         public bool RequestTopic(string topic, XmlRpcValue protos, ref XmlRpcValue ret)
@@ -483,8 +469,7 @@ namespace Uml.Robotics.Ros
 
                 if (proto[0].Type != XmlRpcType.String)
                 {
-                    this.logger.LogError(
-                        "requestTopic received a protocol list in which a sublist did not start with a string");
+                    this.logger.LogError("requestTopic received a protocol list in which a sublist did not start with a string");
                     return false;
                 }
 
@@ -515,7 +500,10 @@ namespace Uml.Robotics.Ros
 
         public bool IsTopicAdvertised(string topic)
         {
-            return advertisedTopics.Count(o => o.Name == topic) > 0;
+            lock (gate)
+            {
+                return advertisedTopics.Count(o => o.Name == topic) > 0;
+            }
         }
 
         internal async Task<bool> RegisterSubscriber(Subscription s, string datatype)
@@ -528,7 +516,7 @@ namespace Uml.Robotics.Ros
 
             if (!await Master.ExecuteAsync("registerSubscriber", args, result, payload, true))
             {
-                logger.LogError("RPC \"registerSubscriber\" for service " + s.Name + " failed.");
+                logger.LogError($"RPC \"registerSubscriber\" for service {s.Name} failed.");
                 return false;
             }
 
@@ -725,11 +713,16 @@ namespace Uml.Robotics.Ros
         {
             var pubs = new List<string>();
             for (int idx = 0; idx < parm[2].Count; idx++)
+            {
                 pubs.Add(parm[2][idx].GetString());
+            }
+
             var pubUpdateTask = PubUpdate(parm[1].GetString(), pubs);
             pubUpdateTask.WhenCompleted().WhenCompleted().Wait();
             if (pubUpdateTask.IsCompletedSuccessfully && pubUpdateTask.Result)
+            {
                 XmlRpcManager.ResponseInt(1, "", 0)(result);
+            }
             else
             {
                 const string error = "Unknown error while handling XmlRpc call to pubUpdate";
