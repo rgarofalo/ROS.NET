@@ -10,6 +10,7 @@ using Messages.std_msgs;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros.ActionLib
 {
@@ -160,12 +161,12 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             ROS.RosShuttingDown -= ROS_RosShuttingDown;
 
-            statusSubscriber.Dispose();
-            feedbackSubscriber.Dispose();
-            resultSubscriber.Dispose();
-            GoalPublisher.Dispose();
-            CancelPublisher.Dispose();
-            nodeHandle.Dispose();
+            statusSubscriber?.Dispose();
+            feedbackSubscriber?.Dispose();
+            resultSubscriber?.Dispose();
+            GoalPublisher?.Dispose();
+            CancelPublisher?.Dispose();
+            nodeHandle?.Dispose();
         }
 
 
@@ -207,6 +208,7 @@ namespace Uml.Robotics.Ros.ActionLib
                         return false;
                     }
                 }
+
                 Thread.Sleep(1);
             }
 
@@ -231,22 +233,23 @@ namespace Uml.Robotics.Ros.ActionLib
         public async Task<bool> WaitForActionServerToStartAsync(TimeSpan? timeout = null, CancellationToken cancel = default(CancellationToken))
         {
             var tic = DateTime.UtcNow;
+            TimeSpan elapsed;
+
             while (ROS.OK)
             {
+                var toc = DateTime.UtcNow;
+                elapsed = toc - tic;
+
                 if (IsServerConnected())
                     return true;
 
                 if (cancel.IsCancellationRequested)
                     return false;
 
-                if (timeout != null)
-                {
-                    var toc = DateTime.UtcNow;
-                    if (toc - tic > timeout)
-                        return false;
-                }
+                if (timeout != null && elapsed > timeout)
+                    return false;
 
-                await Task.Delay(1);
+                await Task.Delay(1, cancel).WhenCompleted();
             }
 
             return false;
@@ -387,8 +390,7 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             lock (gate)
             {
-                int subscriberCount = 0;
-                bool subscriberExists = cancelSubscriberCount.TryGetValue(publisher.SubscriberName, out subscriberCount);
+                bool subscriberExists = cancelSubscriberCount.TryGetValue(publisher.SubscriberName, out int subscriberCount);
                 cancelSubscriberCount[publisher.SubscriberName] = (subscriberExists ? subscriberCount : 0) + 1;
             }
         }
@@ -398,8 +400,7 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             lock (gate)
             {
-                int subscriberCount = 0;
-                bool subscriberExists = cancelSubscriberCount.TryGetValue(publisher.SubscriberName, out subscriberCount);
+                bool subscriberExists = cancelSubscriberCount.TryGetValue(publisher.SubscriberName, out int subscriberCount);
                 if (!subscriberExists)
                 {
                     // This should never happen. Warning has been copied from official actionlib implementation
@@ -493,6 +494,7 @@ namespace Uml.Robotics.Ros.ActionLib
             {
                 goalExists = goalHandles.TryGetValue(result.GoalStatus.goal_id.id, out goalHandle);
             }
+
             if (goalExists)
             {
                 goalHandle.LatestGoalStatus = result.GoalStatus;
@@ -505,14 +507,14 @@ namespace Uml.Robotics.Ros.ActionLib
                         $" {result.GoalStatus.goal_id.id})"
                     );
                 }
-                else if ((goalHandle.State == CommunicationState.WAITING_FOR_GOAL_ACK) ||
-                    (goalHandle.State == CommunicationState.WAITING_FOR_GOAL_ACK) ||
-                    (goalHandle.State == CommunicationState.PENDING) ||
-                    (goalHandle.State == CommunicationState.ACTIVE) ||
-                    (goalHandle.State == CommunicationState.WAITING_FOR_RESULT) ||
-                    (goalHandle.State == CommunicationState.WAITING_FOR_CANCEL_ACK) ||
-                    (goalHandle.State == CommunicationState.RECALLING) ||
-                    (goalHandle.State == CommunicationState.PREEMPTING))
+                else if (goalHandle.State == CommunicationState.WAITING_FOR_GOAL_ACK
+                    || goalHandle.State == CommunicationState.WAITING_FOR_GOAL_ACK
+                    || goalHandle.State == CommunicationState.PENDING
+                    || goalHandle.State == CommunicationState.ACTIVE
+                    || goalHandle.State == CommunicationState.WAITING_FOR_RESULT
+                    || goalHandle.State == CommunicationState.WAITING_FOR_CANCEL_ACK
+                    || goalHandle.State == CommunicationState.RECALLING
+                    || goalHandle.State == CommunicationState.PREEMPTING)
                 {
                     UpdateStatus(goalHandle, result.GoalStatus);
                     TransitionToState(goalHandle, CommunicationState.DONE);
@@ -623,7 +625,7 @@ namespace Uml.Robotics.Ros.ActionLib
             CancellationToken cancel = default(CancellationToken)
         )
         {
-            if (!await this.WaitForActionServerToStartAsync(TimeSpan.FromSeconds(3)))
+            if (!await this.WaitForActionServerToStartAsync(TimeSpan.FromSeconds(3), cancel))
                 throw new TimeoutException($"Action server {this.Name} is not available.");
 
             var gh = this.SendGoal(goal, onTransistionCallback, onFeedbackCallback);
@@ -757,7 +759,6 @@ namespace Uml.Robotics.Ros.ActionLib
                     ROS.Error()("BUG: Got an unknown status from the ActionServer. status = %u", goalStatus.status);
                 }
 
-
             }
             else if (goalHandle.State == CommunicationState.ACTIVE)
             {
@@ -832,7 +833,6 @@ namespace Uml.Robotics.Ros.ActionLib
                     ROS.Error()("BUG: Got an unknown status from the ActionServer. status = %u", goalStatus.status);
                 }
 
-
             }
             else if (goalHandle.State == CommunicationState.WAITING_FOR_CANCEL_ACK)
             {
@@ -888,7 +888,7 @@ namespace Uml.Robotics.Ros.ActionLib
                     ROS.Error()("Invalid Transition from RECALLING to ACTIVE");
                 }
                 else if (
-                    goalStatus.status == GoalStatus.SUCCEEDED ||
+                    goalStatus.status == GoalStatus.SUCCEEDED||
                     goalStatus.status == GoalStatus.ABORTED ||
                     goalStatus.status == GoalStatus.PREEMPTED
                 )
@@ -1022,18 +1022,25 @@ namespace Uml.Robotics.Ros.ActionLib
     {
         [Display(Description = "WAITING_FOR_GOAL_ACK")]
         WAITING_FOR_GOAL_ACK,
+
         [Display(Description = "PENDING")]
         PENDING,
+
         [Display(Description = "ACTIVE")]
         ACTIVE,
+
         [Display(Description = "WAITING_FOR_RESULT")]
         WAITING_FOR_RESULT,
+
         [Display(Description = "WAITING_FOR_CANCEL_ACK")]
         WAITING_FOR_CANCEL_ACK,
+
         [Display(Description = "RECALLING")]
         RECALLING,
+
         [Display(Description = "PREEMPTING")]
         PREEMPTING,
+
         [Display(Description = "DONE")]
         DONE
     }

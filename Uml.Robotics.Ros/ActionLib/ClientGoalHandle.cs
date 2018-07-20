@@ -94,7 +94,6 @@ namespace Uml.Robotics.Ros.ActionLib
 
         internal void FireTransitionCallback(CommunicationState nextState)
         {
-
             GoalStatus goalStatus;
 
             lock (gate)
@@ -136,25 +135,24 @@ namespace Uml.Robotics.Ros.ActionLib
                 ROS.Error()("actionlib", "Trying to cancel() on an inactive goal handle.");
             }
 
-            if ((State == CommunicationState.WAITING_FOR_RESULT ||
-                State == CommunicationState.RECALLING ||
-                State == CommunicationState.PREEMPTING ||
-                State == CommunicationState.DONE))
+            if (State == CommunicationState.WAITING_FOR_RESULT
+                || State == CommunicationState.RECALLING
+                || State == CommunicationState.PREEMPTING
+                || State == CommunicationState.DONE)
             {
                 ROS.Debug()("actionlib", $"Got a cancel() request while in state {State}, so ignoring it");
                 return;
             }
-            else if (!(State == CommunicationState.WAITING_FOR_GOAL_ACK ||
-              State == CommunicationState.PENDING ||
-              State == CommunicationState.ACTIVE ||
-              State == CommunicationState.WAITING_FOR_CANCEL_ACK))
+            else if (!(State == CommunicationState.WAITING_FOR_GOAL_ACK
+                || State == CommunicationState.PENDING
+                || State == CommunicationState.ACTIVE
+                || State == CommunicationState.WAITING_FOR_CANCEL_ACK))
             {
                 ROS.Debug()("actionlib", $"BUG: Unhandled CommState: {State}");
                 return;
             }
 
-            var cancelMessage = new GoalID();
-            cancelMessage.id = Id;
+            var cancelMessage = new GoalID { id = Id };
             actionClient.CancelPublisher.publish(cancelMessage);
             actionClient.TransitionToState(this, CommunicationState.WAITING_FOR_CANCEL_ACK);
 
