@@ -41,7 +41,7 @@ namespace Uml.Robotics.Ros
         /// <param name="rhs">The nodehandle this new one aspires to be</param>
         public NodeHandle(NodeHandle rhs)
         {
-            Callback = rhs.Callback;
+            CallbackQueue = rhs.CallbackQueue;
             remappings = new Dictionary<string, string>(rhs.remappings);
             unresolvedRemappings = new Dictionary<string, string>(rhs.unresolvedRemappings);
             Construct(rhs.Namespace, true);
@@ -56,7 +56,7 @@ namespace Uml.Robotics.Ros
         public NodeHandle(NodeHandle parent, string ns)
         {
             Namespace = parent.Namespace;
-            Callback = parent.Callback;
+            CallbackQueue = parent.CallbackQueue;
             remappings = new Dictionary<string, string>(parent.remappings);
             unresolvedRemappings = new Dictionary<string, string>(parent.unresolvedRemappings);
             Construct(ns, false);
@@ -71,7 +71,7 @@ namespace Uml.Robotics.Ros
         public NodeHandle(NodeHandle parent, string ns, IDictionary<string, string> remappings)
         {
             Namespace = parent.Namespace;
-            Callback = parent.Callback;
+            CallbackQueue = parent.CallbackQueue;
             this.remappings = new Dictionary<string, string>(remappings);
             Construct(ns, false);
         }
@@ -90,14 +90,14 @@ namespace Uml.Robotics.Ros
         public NodeHandle(ICallbackQueue callbackQueue)
             : this(ThisNode.Namespace, null)
         {
-            Callback = callbackQueue;
+            this.CallbackQueue = callbackQueue;
         }
 
         /// <summary>
         ///     gets/sets this nodehandle's callbackqueue
         ///     get : if the private _callback is null it is set to ROS.GlobalCallbackQueue
         /// </summary>
-        public ICallbackQueue Callback
+        public ICallbackQueue CallbackQueue
         {
             get
             {
@@ -230,7 +230,7 @@ namespace Uml.Robotics.Ros
             ops.topic = ResolveName(ops.topic);
             if (ops.callbackQueue == null)
             {
-                ops.callbackQueue = Callback;
+                ops.callbackQueue = CallbackQueue;
             }
             var callbacks = new SubscriberCallbacks(ops.connectCB, ops.disconnectCB, ops.callbackQueue);
             if (await TopicManager.Instance.Advertise(ops, callbacks))
@@ -295,10 +295,10 @@ namespace Uml.Robotics.Ros
 
             var ops = new SubscribeOptions<M>(topic, queueSize, cb.SendEvent)
             {
-                callback_queue = callbackQueue,
-                allow_concurrent_callbacks = allowConcurrentCallbacks
+                CallbackQueue = callbackQueue,
+                AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.callback_queue.AddCallback(cb);
+            ops.CallbackQueue.AddCallback(cb);
             return await SubscribeAsync(ops);
         }
 
@@ -317,10 +317,10 @@ namespace Uml.Robotics.Ros
             var message = RosMessage.Generate(messageType);
             var ops = new SubscribeOptions(topic, message.MessageType, message.MD5Sum(), queueSize, new SubscriptionCallbackHelper<RosMessage>(message.MessageType, cb.SendEvent))
             {
-                callback_queue = callbackQueue,
-                allow_concurrent_callbacks = allowConcurrentCallbacks
+                CallbackQueue = callbackQueue,
+                AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.callback_queue.AddCallback(cb);
+            ops.CallbackQueue.AddCallback(cb);
             return await SubscribeAsync(ops);
         }
 
@@ -331,15 +331,15 @@ namespace Uml.Robotics.Ros
         /// <returns>A subscriber</returns>
         public async Task<Subscriber> SubscribeAsync(SubscribeOptions ops)
         {
-            ops.topic = ResolveName(ops.topic);
-            if (ops.callback_queue == null)
+            ops.Topic = ResolveName(ops.Topic);
+            if (ops.CallbackQueue == null)
             {
-                ops.callback_queue = Callback;
+                ops.CallbackQueue = CallbackQueue;
             }
 
             await TopicManager.Instance.Subscribe(ops);
 
-            var sub = new Subscriber(ops.topic, this, ops.helper);
+            var sub = new Subscriber(ops.Topic, this, ops.CallbackHelper);
             lock (gate)
             {
                 collection.Subscribers.Add(sub);
@@ -376,7 +376,7 @@ namespace Uml.Robotics.Ros
             ops.service = ResolveName(ops.service);
             if (ops.callback_queue == null)
             {
-                ops.callback_queue = Callback;
+                ops.callback_queue = CallbackQueue;
             }
             if (ServiceManager.Instance.AdvertiseService(ops))
             {

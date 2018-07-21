@@ -158,6 +158,7 @@ namespace Uml.Robotics.Ros
             CallbackInfo info = tls.Head;
             if (info == null)
                 return CallOneResult.Empty;
+
             IDInfo idinfo = null;
             idinfo = GetIdInfo(info.RemovalId);
             if (idinfo != null)
@@ -172,7 +173,8 @@ namespace Uml.Robotics.Ros
                         try
                         {
                             result = cb.Call();
-                        } catch (Exception ex)
+                        }
+                        catch (Exception ex)
                         {
                             ROS.Error()("Error during callback. Error: %s, Stacktrace: %s", ex.ToString(), ex.StackTrace);
                         }

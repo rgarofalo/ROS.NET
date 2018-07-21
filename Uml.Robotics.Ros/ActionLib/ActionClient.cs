@@ -135,7 +135,6 @@ namespace Uml.Robotics.Ros.ActionLib
             goalAction.GoalId = goalId;
             goalAction.Goal = goal;
 
-
             // Register goal message
             var goalHandle = new ClientGoalHandle<TGoal, TResult, TFeedback>(
                 this,
@@ -625,7 +624,7 @@ namespace Uml.Robotics.Ros.ActionLib
             CancellationToken cancel = default(CancellationToken)
         )
         {
-            if (!await this.WaitForActionServerToStartAsync(TimeSpan.FromSeconds(3), cancel))
+            if (!await this.WaitForActionServerToStartAsync(TimeSpan.FromSeconds(10), cancel))
                 throw new TimeoutException($"Action server {this.Name} is not available.");
 
             var gh = this.SendGoal(goal, onTransistionCallback, onFeedbackCallback);

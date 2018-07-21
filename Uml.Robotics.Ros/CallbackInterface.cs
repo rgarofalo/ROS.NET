@@ -61,10 +61,8 @@ namespace Uml.Robotics.Ros
             queue.Clear();
         }
 
-        public virtual bool ready()
-        {
-            return true;
-        }
+        public virtual bool Ready =>
+            true;
 
         private bool IsFullNoLock =>
             queueSize > 0 && queue.Count >= queueSize;

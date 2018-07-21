@@ -12,7 +12,7 @@ namespace Uml.Robotics.Ros
     public class SubscribeFailedException : RosException
     {
         public SubscribeFailedException(SubscribeOptions ops, string reason)
-            : base($"Subscribing to topic [{ops.topic}] failed: {reason}")
+            : base($"Subscribing to topic [{ops.Topic}] failed: {reason}")
         {
         }
     }
@@ -273,20 +273,20 @@ namespace Uml.Robotics.Ros
                     return;
             }
 
-            if (string.IsNullOrEmpty(ops.md5sum))
+            if (string.IsNullOrEmpty(ops.Md5Sum))
                 throw new SubscribeFailedException(ops, "with an empty md5sum");
-            if (string.IsNullOrEmpty(ops.datatype))
+            if (string.IsNullOrEmpty(ops.DataType))
                 throw new SubscribeFailedException(ops, "with an empty datatype");
-            if (ops.helper == null)
+            if (ops.CallbackHelper == null)
                 throw new SubscribeFailedException(ops, "without a callback");
 
-            string md5sum = ops.md5sum;
-            string datatype = ops.datatype;
-            var s = new Subscription(ops.topic, md5sum, datatype);
-            s.AddCallback(ops.helper, ops.md5sum, ops.callback_queue, ops.queue_size, ops.allow_concurrent_callbacks, ops.topic);
-            if (!await RegisterSubscriber(s, ops.datatype))
+            string md5sum = ops.Md5Sum;
+            string dataType = ops.DataType;
+            var s = new Subscription(ops.Topic, md5sum, dataType);
+            s.AddCallback(ops.CallbackHelper, ops.Md5Sum, ops.CallbackQueue, ops.QueueSize, ops.AllowConcurrentCallbacks, ops.Topic);
+            if (!await RegisterSubscriber(s, ops.DataType))
             {
-                string error = $"Couldn't register subscriber on topic [{ops.topic}]";
+                string error = $"Couldn't register subscriber on topic [{ops.Topic}]";
                 s.Dispose();
                 this.logger.LogError(error);
                 throw new RosException(error);
@@ -435,25 +435,25 @@ namespace Uml.Robotics.Ros
             if (shuttingDown)
                 return false;
 
-            Subscription sub = subscriptions.FirstOrDefault(x => !x.IsDisposed && x.Name == options.topic);
+            Subscription sub = subscriptions.FirstOrDefault(x => !x.IsDisposed && x.Name == options.Topic);
             if (sub == null)
                 return false;
 
-            if (!Md5SumsMatch(options.md5sum, sub.Md5Sum))
+            if (!Md5SumsMatch(options.Md5Sum, sub.Md5Sum))
             {
                 throw new Exception(
                     "Tried to subscribe to a topic with the same name but different MD5 sum as a topic that was already subscribed [" +
-                     options.datatype + "/" + options.md5sum + " vs. " + sub.DataType + "/" + sub.Md5Sum + "]"
+                     options.DataType + "/" + options.Md5Sum + " vs. " + sub.DataType + "/" + sub.Md5Sum + "]"
                 );
             }
 
             return sub.AddCallback(
-                options.helper,
-                options.md5sum,
-                options.callback_queue,
-                options.queue_size,
-                options.allow_concurrent_callbacks,
-                options.topic
+                options.CallbackHelper,
+                options.Md5Sum,
+                options.CallbackQueue,
+                options.QueueSize,
+                options.AllowConcurrentCallbacks,
+                options.Topic
             );
         }
 
@@ -506,53 +506,38 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        internal async Task<bool> RegisterSubscriber(Subscription s, string datatype)
+        internal async Task<bool> RegisterSubscriber(Subscription sub, string datatype)
         {
             string uri = XmlRpcManager.Instance.Uri;
 
-            var args = new XmlRpcValue(ThisNode.Name, s.Name, datatype, uri);
+            var args = new XmlRpcValue(ThisNode.Name, sub.Name, datatype, uri);
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
 
             if (!await Master.ExecuteAsync("registerSubscriber", args, result, payload, true))
             {
-                logger.LogError($"RPC \"registerSubscriber\" for service {s.Name} failed.");
+                logger.LogError($"RPC \"registerSubscriber\" for service {sub.Name} failed.");
                 return false;
             }
 
-            var pub_uris = new List<string>();
-            for (int i = 0; i < payload.Count; i++)
-            {
-                XmlRpcValue load = payload[i];
-                string pubed = load.GetString();
-                if (pubed != uri && !pub_uris.Contains(pubed))
-                {
-                    pub_uris.Add(pubed);
-                }
-            }
+            // get list of of publisher URIs
+            var pubUris = payload
+                .Select(x => x.GetString())
+                .Distinct()
+                .ToList();
 
-            bool self_subscribed = false;
             Publication pub = null;
-            string sub_md5sum = s.Md5Sum;
 
             lock (gate)
             {
-                foreach (Publication p in advertisedTopics)
-                {
-                    pub = p;
-                    string pub_md5sum = pub.Md5Sum;
-                    if (pub.Name == s.Name && Md5SumsMatch(pub_md5sum, sub_md5sum) && !pub.Dropped)
-                    {
-                        self_subscribed = true;
-                        break;
-                    }
-                }
+                pub = advertisedTopics.FirstOrDefault(p => p.Name == sub.Name && !p.Dropped && Md5SumsMatch(p.Md5Sum, sub.Md5Sum));
             }
 
-            await s.PubUpdate(pub_uris);
-            if (self_subscribed)
+            await sub.PubUpdate(pubUris);
+
+            if (pub != null)    // self-subscribed
             {
-                s.AddLocalConnection(pub);
+                sub.AddLocalConnection(pub);
             }
 
             return true;

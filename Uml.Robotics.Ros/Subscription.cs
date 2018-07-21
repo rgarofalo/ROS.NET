@@ -15,7 +15,7 @@ namespace Uml.Robotics.Ros
     {
         private class CallbackInfo
         {
-            public ICallbackQueue Callback;
+            public ICallbackQueue CallbackQueue;
             public ISubscriptionCallbackHelper Helper;
             public CallbackInterface SubscriptionQueue;
         }
@@ -411,7 +411,7 @@ namespace Uml.Robotics.Ros
                         if (was_full)
                             ++drops;
                         else
-                            info.Callback.AddCallback(info.SubscriptionQueue);
+                            info.CallbackQueue.AddCallback(info.SubscriptionQueue);
                     }
                 }
             }
@@ -454,7 +454,7 @@ namespace Uml.Robotics.Ros
                 var info = new CallbackInfo
                 {
                     Helper = helper,
-                    Callback = queue,
+                    CallbackQueue = queue,
                     SubscriptionQueue = new Callback(helper.Callback.SendEvent, topic, queueSize, allowConcurrentCallbacks)
                 };
 
@@ -476,7 +476,7 @@ namespace Uml.Robotics.Ros
                                 info.SubscriptionQueue.AddToCallbackQueue(info.Helper, latchedMessages[link].Message, nonconst_need_copy, ref wasFull, receiptTime);
                                 if (!wasFull)
                                 {
-                                    info.Callback.AddCallback(info.SubscriptionQueue);
+                                    info.CallbackQueue.AddCallback(info.SubscriptionQueue);
                                 }
                             }
                         }
@@ -496,7 +496,7 @@ namespace Uml.Robotics.Ros
                     if (info.Helper == helper)
                     {
                         info.SubscriptionQueue.Clear();
-                        info.Callback.RemoveById(info.SubscriptionQueue.Uid);
+                        info.CallbackQueue.RemoveById(info.SubscriptionQueue.Uid);
                         callbacks.Remove(info);
 
                         break;
