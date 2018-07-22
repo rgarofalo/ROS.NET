@@ -36,21 +36,21 @@ namespace Uml.Robotics.XmlRpc
             try
             {
                 int dataLen = stream.Read(data, 0, READ_BUFFER_LENGTH);
-
                 if (dataLen == 0)
                 {
+                    logger.LogDebug("0 bytes read, graceful disconnect");
                     return false;   // zero bytes read -> graceful disconnect
                 }
 
+                string textChunk = Encoding.ASCII.GetString(data, 0, dataLen);
                 if (header == null)
                 {
-                    header = new HttpHeader(Encoding.ASCII.GetString(data, 0, dataLen));
+                    header = new HttpHeader(textChunk);
                     Debug.Assert(header.HeaderStatus != HttpHeader.ParseStatus.UNINITIALIZED);
                 }
-                else if (header.Append(Encoding.ASCII.GetString(data, 0, dataLen)) == HttpHeader.ParseStatus.PARTIAL_HEADER)
+                else
                 {
-                    // if we successfully append a piece of the header, return true, but DO NOT change states
-                    return true;
+                    header.Append(textChunk);
                 }
             }
             catch (SocketException ex)
@@ -63,9 +63,6 @@ namespace Uml.Robotics.XmlRpc
                 logger.LogError(ex, "XmlRpcServerConnection::readHeader: error while reading header ({0}).", ex.Message);
                 return false;
             }
-
-            if (header.HeaderStatus != HttpHeader.ParseStatus.COMPLETE_HEADER)
-                return false;
 
             return true;
         }

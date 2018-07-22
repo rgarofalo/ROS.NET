@@ -214,7 +214,7 @@ namespace Uml.Robotics.Ros
                 this.uri = ROS.ROS_MASTER_URI;       // if port is non-zero we are the master
             }
 
-            logger.LogInformation("XmlRpc Server listening at " + uri);
+            logger.LogInformation($"XmlRpc Server for node '{ThisNode.Name}' listening at {uri}.");
             serverThread = new Thread(ServerThreadFunc) { IsBackground = true };
             serverThread.Start();
         }

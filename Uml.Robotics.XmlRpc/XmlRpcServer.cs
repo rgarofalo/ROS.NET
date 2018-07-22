@@ -32,8 +32,8 @@ namespace Uml.Robotics.XmlRpc
         private bool introspectionEnabled;     // whether the introspection API is supported by this server
         private TcpListener listener;
 
-        private XmlRpcServerMethod methodListMethods;
-        private XmlRpcServerMethod methodHelp;
+        private readonly XmlRpcServerMethod methodListMethods;
+        private readonly XmlRpcServerMethod methodHelp;
         private Dictionary<string, XmlRpcServerMethod> methods = new Dictionary<string, XmlRpcServerMethod>();
 
         public XmlRpcServer()
@@ -218,7 +218,7 @@ namespace Uml.Robotics.XmlRpc
         // Create a response from results xml
         public string GenerateResponse(string resultXml)
         {
-            const string RESPONSE_1 = "<?xml version=\"1.0\"?>\r\n<methodResponse><params><param>\r\n\t";
+            const string RESPONSE_1 = "<?xml version=\"1.0\"?>\r\n<methodResponse><params><param>\r\n";
             const string RESPONSE_2 = "\r\n</param></params></methodResponse>\r\n";
 
             string body = RESPONSE_1 + resultXml + RESPONSE_2;
@@ -264,9 +264,11 @@ namespace Uml.Robotics.XmlRpc
         {
             return string.Format(
                 "HTTP/1.1 200 OK\r\n" +
-                "Server: {0}\r\n" +
+                "Connection: {0}\r\n" +
+                "Server: {1}\r\n" +
                 "Content-Type: text/xml\r\n" +
-                "Content-length: {1}\r\n\r\n",
+                "Content-length: {2}\r\n\r\n",
+                this.KeepOpen ? "Keep-Alive" : "Close",
                 XMLRPC_VERSION,
                 XmlConvert.ToString(body.Length)
             );
@@ -274,7 +276,7 @@ namespace Uml.Robotics.XmlRpc
 
         public string GenerateFaultResponse(string errorMsg, int errorCode = -1)
         {
-            const string bodyBegin = "<?xml version=\"1.0\"?>\r\n<methodResponse><fault>\r\n\t";
+            const string bodyBegin = "<?xml version=\"1.0\"?>\r\n<methodResponse><fault>\r\n";
             const string bodyEnd = "\r\n</fault></methodResponse>\r\n";
 
             var faultStruct = new XmlRpcValue();

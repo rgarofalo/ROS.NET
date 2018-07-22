@@ -193,7 +193,7 @@ namespace Uml.Robotics.Ros
 
                 bool retval = true;
 
-                logger.LogDebug($"Publisher update for [{Name}]");
+                logger.LogDebug($"Publisher update for [{Name}] (sources: {string.Join(", ", publisherUris)})");
 
                 var additions = new List<string>();
                 List<PublisherLink> subtractions;
@@ -234,11 +234,11 @@ namespace Uml.Robotics.Ros
                     }
                 }
 
-                foreach (string i in additions)
+                foreach (string publisherUri in additions)
                 {
-                    if (XmlRpcManager.Instance.Uri != i)
+                    if (XmlRpcManager.Instance.Uri != publisherUri)
                     {
-                        retval &= await NegotiateConnection(i);
+                        retval &= await NegotiateConnection(publisherUri);
                     }
                 }
                 return retval;

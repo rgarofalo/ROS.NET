@@ -159,9 +159,7 @@ namespace Uml.Robotics.Ros
             if (info == null)
                 return CallOneResult.Empty;
 
-            IDInfo idinfo = null;
-            idinfo = GetIdInfo(info.RemovalId);
-            if (idinfo != null)
+            if (TryGetIdInfo(info.RemovalId, out IDInfo idinfo))
             {
                 CallbackInterface cb = info.Callback;
                 lock (idinfo.calling_rw_mutex)
@@ -227,14 +225,12 @@ namespace Uml.Robotics.Ros
             sem.Set();
         }
 
-        private IDInfo GetIdInfo(long id)
+        private bool TryGetIdInfo(long id, out IDInfo value)
         {
             lock (idInfoMutex)
             {
-                if (idInfo.TryGetValue(id, out IDInfo value))
-                    return value;
+                return idInfo.TryGetValue(id, out value);
             }
-            return null;
         }
     }
 }

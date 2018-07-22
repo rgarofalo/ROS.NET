@@ -93,7 +93,7 @@ namespace Uml.Robotics.Ros
     }
 
 
-    public class IDInfo
+    public struct IDInfo
     {
         public object calling_rw_mutex;
         public long id;

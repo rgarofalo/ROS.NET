@@ -17,7 +17,7 @@ namespace Uml.Robotics.Ros
             : base(topic)
         {
             this.topic = topic;
-            this.nodehandle = new NodeHandle(nodeHandle);
+            this.nodeHandle = new NodeHandle(nodeHandle);
             this.helper = cb;
         }
 
@@ -29,7 +29,7 @@ namespace Uml.Robotics.Ros
             : base(s.topic)
         {
             this.topic = s.topic;
-            this.nodehandle = new NodeHandle(s.nodehandle);
+            this.nodeHandle = new NodeHandle(s.nodeHandle);
             this.helper = s.helper;
         }
 
@@ -75,7 +75,7 @@ namespace Uml.Robotics.Ros
         }
 
         public ISubscriptionCallbackHelper helper;
-        public NodeHandle nodehandle;
+        public NodeHandle nodeHandle;
         internal Subscription subscription;
         public string topic = "";
         public bool unsubscribed;

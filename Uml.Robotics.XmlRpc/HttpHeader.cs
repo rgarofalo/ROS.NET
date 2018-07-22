@@ -72,9 +72,8 @@ namespace Uml.Robotics.XmlRpc
         }
 
         readonly ILogger logger = XmlRpcLogging.CreateLogger<HttpHeader>();
-        Dictionary<HttpHeaderField, string> headerFields = new Dictionary<HttpHeaderField, string>();
-        Dictionary<HttpHeaderField, string> headerFieldNames = new Dictionary<HttpHeaderField, string>();
-        byte[] data = new byte[4096];
+        readonly Dictionary<HttpHeaderField, string> headerFields = new Dictionary<HttpHeaderField, string>();
+        readonly Dictionary<HttpHeaderField, string> headerFieldNames = new Dictionary<HttpHeaderField, string>();
         string headerSoFar = string.Empty;
         ParseStatus headerStatus = ParseStatus.UNINITIALIZED;
 
@@ -109,21 +108,13 @@ namespace Uml.Robotics.XmlRpc
             get { return headerFields; }
         }
 
-        public byte[] Data
-        {
-            get { return data; }
-            set { data = value; }
-        }
-
         public string DataString { get; private set; }
 
         public int ContentLength
         {
             get
             {
-                int ret;
-                string value;
-                if (headerFields.TryGetValue(HttpHeaderField.Content_Length, out value) && int.TryParse(value, out ret))
+                if (headerFields.TryGetValue(HttpHeaderField.Content_Length, out string value) && int.TryParse(value, out int ret))
                     return ret;
                 return -1;
             }
@@ -133,8 +124,8 @@ namespace Uml.Robotics.XmlRpc
         {
             get
             {
-                int contentlength = ContentLength;
-                if (contentlength <= 0)
+                int contentlength = this.ContentLength;
+                if (contentlength < 0)
                     return false;
 
                 return this.DataString != null && this.DataString.Length >= contentlength;
@@ -145,23 +136,37 @@ namespace Uml.Robotics.XmlRpc
         ///     Either HTTPRequest contains the header AND some data, or it contains part or all of the header. Accumulate pieces
         ///     of the header in case it spans multiple reads.
         /// </summary>
-        /// <param name="HTTPRequest"></param>
+        /// <param name="requestChunk"></param>
         /// <returns></returns>
-        public ParseStatus Append(string HTTPRequest)
+        public ParseStatus Append(string requestChunk)
         {
+            if (headerStatus == ParseStatus.COMPLETE_HEADER && this.ContentComplete)
+            {
+                // restart with empty header and see if it works
+                headerStatus = ParseStatus.UNINITIALIZED;
+                DataString = "";
+                headerSoFar = "";
+                headerFields.Clear();
+            }
+
             if (headerStatus != ParseStatus.COMPLETE_HEADER)
             {
-                int betweenHeaderAndData = HTTPRequest.IndexOf("\r\n\r\n");
+                int betweenHeaderAndData = requestChunk.IndexOf("\r\n\r\n");        // AKo: Fix this: Parsing has to be changed, packet could be split at newline boundaries.
                 if (betweenHeaderAndData > 0)
                 {
                     headerStatus = ParseStatus.COMPLETE_HEADER;
 
                     //found the boundary between header and data
-                    headerSoFar += HTTPRequest.Substring(0, betweenHeaderAndData);
+                    headerSoFar += requestChunk.Substring(0, betweenHeaderAndData);
                     ParseHeader(headerSoFar);
 
                     //shorten the request so we can fall through
-                    HTTPRequest = HTTPRequest.Substring(betweenHeaderAndData + 4);
+                    requestChunk = requestChunk.Substring(betweenHeaderAndData + 4);
+
+                    if (ContentComplete)
+                    {
+                        return headerStatus;
+                    }
 
                     //
                     // FALL THROUGH to header complete case
@@ -169,7 +174,7 @@ namespace Uml.Robotics.XmlRpc
                 }
                 else
                 {
-                    headerSoFar += HTTPRequest;
+                    headerSoFar += requestChunk;
                     headerStatus = ParseStatus.PARTIAL_HEADER;
                     ParseHeader(headerSoFar);
                     return headerStatus;
@@ -178,22 +183,10 @@ namespace Uml.Robotics.XmlRpc
 
             if (headerStatus == ParseStatus.COMPLETE_HEADER)
             {
+                DataString += requestChunk;             // AKo: Fix this: remaining chunk is appended no matter if it is longer than the remaining content-length
                 if (ContentComplete)
                 {
-                    //this isn't right... restart with empty header and see if it works
-                    headerStatus = ParseStatus.UNINITIALIZED;
-                    Data = new byte[0];
-                    DataString = "";
-                    headerSoFar = "";
-                    headerFields.Clear();
-                    return Append(HTTPRequest);
-                }
-
-                DataString += HTTPRequest;
-                if (ContentComplete)
-                {
-                    Data = Encoding.ASCII.GetBytes(DataString);
-                    logger.LogDebug("DONE READING CONTENT");
+                    logger.LogDebug("DONE READING CONTENT: {0}", DataString);
                 }
             }
 
@@ -256,7 +249,7 @@ namespace Uml.Robotics.XmlRpc
                     logger.LogWarning("HTTP HEADER: field \"{0}\" has a length of 0", headerField);
                 }
 
-                logger.LogDebug("HTTP HEADER: Index={0} | champ={1} = {2}", f, HTTPfield.Substring(1), headerFields[headerField]);
+                logger.LogDebug("HTTP HEADER: Index={0} | {1} = {2}", f, HTTPfield.Substring(1), headerFields[headerField]);
             }
         }
     }

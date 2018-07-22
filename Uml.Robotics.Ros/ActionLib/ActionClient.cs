@@ -31,6 +31,7 @@ namespace Uml.Robotics.Ros.ActionLib
         public Time LatestStatusTime { get; private set; }
         public uint? LatestSequenceNumber { get; private set; } = null;
         public int? PreemptTimeout { get; set; } = null;
+        public TimeSpan ActionServerWaitTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
         private readonly ILogger logger = ApplicationLogging.CreateLogger<ActionClient<TGoal, TResult, TFeedback>>();
         private readonly object gate = new object();
@@ -223,7 +224,7 @@ namespace Uml.Robotics.Ros.ActionLib
         /// the user wait until the network connection to the server is negotiated
         /// NOTE: Using this call in a single threaded ROS application, or any
         /// application where the action client's callback queue is not being
-        /// serviced, will not work.Without a separate thread servicing the queue, or
+        /// serviced, will not work. Without a separate thread servicing the queue, or
         /// a multi-threaded spinner, there is no way for the client to tell whether
         /// or not the server is up because it can't receive a status message.
         /// </summary>
@@ -243,12 +244,23 @@ namespace Uml.Robotics.Ros.ActionLib
                     return true;
 
                 if (cancel.IsCancellationRequested)
-                    return false;
+                    break;
 
                 if (timeout != null && elapsed > timeout)
-                    return false;
+                    break;
 
-                await Task.Delay(1, cancel).WhenCompleted();
+                await Task.Delay(1);
+            }
+
+            lock (gate)
+            {
+                if (IsServerConnected())
+                    return true;
+
+                logger.LogInformation($"ActionServer {this.Name} not ready (status received: {statusReceived}; callerId: {statusCallerId}; "
+                    + $"goal: {statusCallerId != null && goalSubscriberCount.ContainsKey(statusCallerId)} ({goalSubscriberCount.Count}); "
+                    + $"cancel: {statusCallerId != null && cancelSubscriberCount.ContainsKey(statusCallerId)} ({cancelSubscriberCount.Count}); "
+                    + $"feedback: {feedbackSubscriber.NumPublishers}; result: {resultSubscriber.NumPublishers}).");
             }
 
             return false;
@@ -391,6 +403,7 @@ namespace Uml.Robotics.Ros.ActionLib
             {
                 bool subscriberExists = cancelSubscriberCount.TryGetValue(publisher.SubscriberName, out int subscriberCount);
                 cancelSubscriberCount[publisher.SubscriberName] = (subscriberExists ? subscriberCount : 0) + 1;
+                ROS.Debug()($"cancelConnectCallback: Adding {publisher.SubscriberName} to cancelSubscriberCount");
             }
         }
 
@@ -624,8 +637,11 @@ namespace Uml.Robotics.Ros.ActionLib
             CancellationToken cancel = default(CancellationToken)
         )
         {
-            if (!await this.WaitForActionServerToStartAsync(TimeSpan.FromSeconds(10), cancel))
+            if (!await this.WaitForActionServerToStartAsync(this.ActionServerWaitTimeout, cancel))
+            {
+                logger.LogInformation($"Action server {this.Name} is not available.");
                 throw new TimeoutException($"Action server {this.Name} is not available.");
+            }
 
             var gh = this.SendGoal(goal, onTransistionCallback, onFeedbackCallback);
             using (cancel.Register(gh.Cancel))

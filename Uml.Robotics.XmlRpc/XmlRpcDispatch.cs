@@ -15,6 +15,7 @@ namespace Uml.Robotics.XmlRpc
             WritableEvent = 2,
             Exception = 4
         }
+
         private class DispatchRecord
         {
             public XmlRpcSource Client { get; set; }
@@ -25,19 +26,28 @@ namespace Uml.Robotics.XmlRpc
 
         public void AddSource(XmlRpcSource source, EventType eventMask)
         {
-            sources.Add(new DispatchRecord { Client = source, Mask = eventMask });
+            lock (sources)
+            {
+                sources.Add(new DispatchRecord { Client = source, Mask = eventMask });
+            }
         }
 
         public void RemoveSource(XmlRpcSource source)
         {
-            sources.RemoveAll(x => x.Client == source);
+            lock (sources)
+            {
+                sources.RemoveAll(x => x.Client == source);
+            }
         }
 
         public void SetSourceEvents(XmlRpcSource source, EventType eventMask)
         {
-            foreach (var record in sources.Where(x => x.Client == source))
+            lock (sources)
             {
-                record.Mask |= eventMask;
+                foreach (var record in sources.Where(x => x.Client == source))
+                {
+                    record.Mask |= eventMask;
+                }
             }
         }
 
@@ -104,15 +114,25 @@ namespace Uml.Robotics.XmlRpc
 
             while (sources.Count > 0)
             {
-                var sourcesCopy = sources.GetRange(0, sources.Count);
+                List<DispatchRecord> sourcesCopy;
+                lock (sources)
+                {
+                    sourcesCopy = sources.ToList();
+                }
+
                 var toRemove = new List<XmlRpcSource>();
                 CheckSources(sourcesCopy, timeSlice, toRemove);
 
-                foreach (var src in toRemove)
+                if (toRemove.Count > 0)
                 {
-                    RemoveSource(src);
-                    if (!src.KeepOpen)
-                        src.Close();
+                    lock (sources)
+                    {
+                        foreach (var src in toRemove)
+                        {
+                            RemoveSource(src);
+                            src.Close();
+                        }
+                    }
                 }
 
                 // check whether end time has been passed

@@ -63,13 +63,13 @@ namespace Uml.Robotics.XmlRpc
                 if (connectionState == ServerConnectionState.READ_HEADER)
                 {
                     if (!ReadHeader(ref header))
-                        return 0;
+                        return XmlRpcDispatch.EventType.NoEvent;
                 }
 
                 if (connectionState == ServerConnectionState.READ_REQUEST)
                 {
                     if (!ReadRequest())
-                        return 0;
+                        return XmlRpcDispatch.EventType.NoEvent;
                 }
             }
             else if (eventType.HasFlag(XmlRpcDispatch.EventType.WritableEvent))
@@ -77,28 +77,26 @@ namespace Uml.Robotics.XmlRpc
                 if (connectionState == ServerConnectionState.WRITE_RESPONSE)
                 {
                     if (!WriteResponse(header.DataString))
-                        return 0;
+                        return XmlRpcDispatch.EventType.NoEvent;
                 }
             }
 
-            return (connectionState == ServerConnectionState.WRITE_RESPONSE)
+            return connectionState == ServerConnectionState.WRITE_RESPONSE
                 ? XmlRpcDispatch.EventType.WritableEvent : XmlRpcDispatch.EventType.ReadableEvent;
         }
 
         internal override bool ReadHeader(ref HttpHeader header)
         {
-            if (base.ReadHeader(ref header))
-            {
-                if (header.HeaderStatus == HttpHeader.ParseStatus.COMPLETE_HEADER)
-                {
-                    logger.LogDebug("KeepAlive: {0}", keepAlive);
-                    connectionState = ServerConnectionState.READ_REQUEST;
-                }
+            if (!base.ReadHeader(ref header))
+                return false;
 
-                return true;
+            if (header.HeaderStatus == HttpHeader.ParseStatus.COMPLETE_HEADER)
+            {
+                logger.LogDebug("KeepAlive: {0}", keepAlive);
+                connectionState = ServerConnectionState.READ_REQUEST;
             }
 
-            return false;
+            return true;
         }
 
         public override void Close()
@@ -137,14 +135,14 @@ namespace Uml.Robotics.XmlRpc
                 }
                 header.Append(Encoding.ASCII.GetString(data, 0, dataLen));
             }
-            // Otherwise, parse and dispatch the request
-            logger.LogDebug("XmlRpcServerConnection::readRequest read {0} bytes.", dataLen);
 
-            if (!header.ContentComplete)
+            // Otherwise, parse and dispatch the request
+            logger.LogDebug("XmlRpcServerConnection::readRequest read/left {0}/{1} bytes, contentComplete: {2}.", dataLen, left, header.ContentComplete);
+
+            if (header.ContentComplete)
             {
-                return false;
+                connectionState = ServerConnectionState.WRITE_RESPONSE;
             }
-            connectionState = ServerConnectionState.WRITE_RESPONSE;
 
             return true; // Continue monitoring this source
         }

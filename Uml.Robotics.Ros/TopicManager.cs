@@ -328,7 +328,9 @@ namespace Uml.Robotics.Ros
                 }
 
                 if (!await UnregisterSubscriber(topic))
+                {
                     this.logger.LogWarning("Couldn't unregister subscriber for topic [" + topic + "]");
+                }
 
                 sub.Dispose();
                 return true;
@@ -502,21 +504,19 @@ namespace Uml.Robotics.Ros
         {
             lock (gate)
             {
-                return advertisedTopics.Count(o => o.Name == topic) > 0;
+                return advertisedTopics.Any(o => o.Name == topic);
             }
         }
 
         internal async Task<bool> RegisterSubscriber(Subscription sub, string datatype)
         {
-            string uri = XmlRpcManager.Instance.Uri;
-
-            var args = new XmlRpcValue(ThisNode.Name, sub.Name, datatype, uri);
+            var args = new XmlRpcValue(ThisNode.Name, sub.Name, datatype, XmlRpcManager.Instance.Uri);
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
 
             if (!await Master.ExecuteAsync("registerSubscriber", args, result, payload, true))
             {
-                logger.LogError($"RPC \"registerSubscriber\" for service {sub.Name} failed.");
+                logger.LogError($"RPC \"registerSubscriber\" for topic {sub.Name} failed.");
                 return false;
             }
 
@@ -526,18 +526,18 @@ namespace Uml.Robotics.Ros
                 .Distinct()
                 .ToList();
 
-            Publication pub = null;
+            Publication localPublication = null;
 
             lock (gate)
             {
-                pub = advertisedTopics.FirstOrDefault(p => p.Name == sub.Name && !p.Dropped && Md5SumsMatch(p.Md5Sum, sub.Md5Sum));
+                localPublication = advertisedTopics.FirstOrDefault(p => p.Name == sub.Name && !p.Dropped && Md5SumsMatch(p.Md5Sum, sub.Md5Sum));
             }
 
             await sub.PubUpdate(pubUris);
 
-            if (pub != null)    // self-subscribed
+            if (localPublication != null)    // self-subscribed
             {
-                sub.AddLocalConnection(pub);
+                sub.AddLocalConnection(localPublication);
             }
 
             return true;
@@ -545,36 +545,34 @@ namespace Uml.Robotics.Ros
 
         public async Task<bool> UnregisterSubscriber(string topic)
         {
-            bool unregisterSuccess = false;
             try
             {
                 var args = new XmlRpcValue(ThisNode.Name, topic, XmlRpcManager.Instance.Uri);
                 var result = new XmlRpcValue();
                 var payload = new XmlRpcValue();
-                unregisterSuccess = await Master.ExecuteAsync("unregisterSubscriber", args, result, payload, false) && result.IsEmpty;
+                return await Master.ExecuteAsync("unregisterSubscriber", args, result, payload, false) && result.IsEmpty;
             }
             catch
             {
                 // ignore exception during unregister
+                return false;
             }
-            return unregisterSuccess;
         }
 
         public async Task<bool> UnregisterPublisher(string topic)
         {
-            bool unregisterSuccess = false;
             try
             {
                 var args = new XmlRpcValue(ThisNode.Name, topic, XmlRpcManager.Instance.Uri);
                 var result = new XmlRpcValue();
                 var payload = new XmlRpcValue();
-                unregisterSuccess = await Master.ExecuteAsync("unregisterPublisher", args, result, payload, false) && result.IsEmpty;
+                return await Master.ExecuteAsync("unregisterPublisher", args, result, payload, false) && result.IsEmpty;
             }
             catch
             {
                 // ignore exception during unregister
+                return false;
             }
-            return unregisterSuccess;
         }
 
         private Publication LookupPublicationWithoutLock(string topic)
@@ -696,13 +694,12 @@ namespace Uml.Robotics.Ros
 
         private void PublisherUpdateCallback(XmlRpcValue parm, XmlRpcValue result)
         {
-            var pubs = new List<string>();
-            for (int idx = 0; idx < parm[2].Count; idx++)
-            {
-                pubs.Add(parm[2][idx].GetString());
-            }
+            string topic = parm[1].GetString();
+            List<string> publicationUris = parm[2].Select(x => x.GetString()).ToList();
 
-            var pubUpdateTask = PubUpdate(parm[1].GetString(), pubs);
+            this.logger.LogDebug($"PublisherUpdateCallback for topic '{topic}' with URIs: {string.Join(", ", publicationUris)}");
+
+            var pubUpdateTask = PubUpdate(topic, publicationUris);
             pubUpdateTask.WhenCompleted().WhenCompleted().Wait();
             if (pubUpdateTask.IsCompletedSuccessfully && pubUpdateTask.Result)
             {
@@ -718,10 +715,9 @@ namespace Uml.Robotics.Ros
 
         private void RequestTopicCallback(XmlRpcValue parm, XmlRpcValue res)
         {
-            //XmlRpcValue res = XmlRpcValue.Create(ref result)
-            //	, parm = XmlRpcValue.Create(ref parms);
-            //result = res.instance;
-            if (!RequestTopic(parm[1].GetString(), parm[2], ref res))
+            string topic = parm[1].GetString();
+
+            if (!RequestTopic(topic, parm[2], ref res))
             {
                 const string error = "Unknown error while handling XmlRpc call to requestTopic";
                 this.logger.LogError(error);
