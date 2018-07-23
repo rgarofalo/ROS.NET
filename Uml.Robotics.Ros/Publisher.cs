@@ -1,11 +1,12 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
-    public class Publisher<M> : IPublisher where M : RosMessage, new()
+    public class Publisher<M>
+        : IPublisher
+        where M : RosMessage, new()
     {
         private Publication p;
 
@@ -17,8 +18,7 @@ namespace Uml.Robotics.Ros
         /// <param name="datatype">Datatype to publish</param>
         /// <param name="nodeHandle">nodehandle</param>
         /// <param name="callbacks">Any callbacks to attach</param>
-        public Publisher(string topic, string md5sum, string datatype, NodeHandle nodeHandle,
-            SubscriberCallbacks callbacks)
+        public Publisher(string topic, string md5sum, string datatype, NodeHandle nodeHandle, SubscriberCallbacks callbacks)
         {
             this.topic = topic;
             this.md5sum = md5sum;
@@ -27,10 +27,13 @@ namespace Uml.Robotics.Ros
             this.callbacks = callbacks;
         }
 
-        public void publish(M msg)
+        public void Publish(M msg)
         {
             if (p == null)
+            {
                 p = TopicManager.Instance.LookupPublication(topic);
+            }
+
             if (p != null)
             {
                 msg.Serialized = null;

@@ -153,7 +153,7 @@ namespace Uml.Robotics.Ros.ActionLib
             }
 
             var cancelMessage = new GoalID { id = Id };
-            actionClient.CancelPublisher.publish(cancelMessage);
+            actionClient.CancelPublisher.Publish(cancelMessage);
             actionClient.TransitionToState(this, CommunicationState.WAITING_FOR_CANCEL_ACK);
 
             CheckDoneAsync();
@@ -177,7 +177,7 @@ namespace Uml.Robotics.Ros.ActionLib
             {
                 ROS.Error()("actionlib", "Trying to resend() on an inactive goal handle.");
             }
-            actionClient.GoalPublisher.publish(Goal);
+            actionClient.GoalPublisher.Publish(Goal);
         }
 
 

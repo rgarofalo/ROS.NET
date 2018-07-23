@@ -96,7 +96,7 @@ namespace Uml.Robotics.Ros
                 while (await queue.MoveNext(default(CancellationToken)))
                 {
                     Log entry = queue.Current;
-                    publisher.publish(entry);
+                    publisher.Publish(entry);
                 }
             }
         }

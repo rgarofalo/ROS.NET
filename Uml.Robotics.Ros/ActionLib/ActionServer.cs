@@ -144,7 +144,7 @@ namespace Uml.Robotics.Ros.ActionLib
             ROS.Debug()("actionlib", $"Publishing feedback for goal with id: {goalStatus.goal_id.id} and stamp: " +
                 $"{new DateTimeOffset(ROS.ToDateTime(goalStatus.goal_id.stamp)).ToUnixTimeSeconds()}"
             );
-            feedbackPublisher.publish(newFeedback);
+            feedbackPublisher.Publish(newFeedback);
         }
 
 
@@ -161,7 +161,7 @@ namespace Uml.Robotics.Ros.ActionLib
             ROS.Debug()("actionlib", $"Publishing result for goal with id: {goalStatus.goal_id.id} and stamp: " +
                 $"{new DateTimeOffset(ROS.ToDateTime(goalStatus.goal_id.stamp)).ToUnixTimeSeconds()}"
             );
-            resultPublisher.publish(newResult);
+            resultPublisher.Publish(newResult);
             PublishStatus();
         }
 

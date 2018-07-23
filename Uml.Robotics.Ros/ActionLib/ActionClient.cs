@@ -90,7 +90,7 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             var cancelMessage = new GoalID();
             cancelMessage.stamp = time;
-            CancelPublisher.publish(cancelMessage);
+            CancelPublisher.Publish(cancelMessage);
         }
 
 
@@ -130,11 +130,15 @@ namespace Uml.Robotics.Ros.ActionLib
             }
 
             // Prepare Goal Message
-            var goalAction = new GoalActionMessage<TGoal>();
-            goalAction.Header = new Messages.std_msgs.Header();
-            goalAction.Header.stamp = ROS.GetTime();
-            goalAction.GoalId = goalId;
-            goalAction.Goal = goal;
+            var goalAction = new GoalActionMessage<TGoal>
+            {
+                Header = new Messages.std_msgs.Header
+                {
+                    stamp = ROS.GetTime()
+                },
+                GoalId = goalId,
+                Goal = goal
+            };
 
             // Register goal message
             var goalHandle = new ClientGoalHandle<TGoal, TResult, TFeedback>(
@@ -150,7 +154,7 @@ namespace Uml.Robotics.Ros.ActionLib
             }
 
             // Publish goal message
-            GoalPublisher.publish(goalAction);
+            GoalPublisher.Publish(goalAction);
             ROS.Debug()("Goal published");
 
             return goalHandle;
