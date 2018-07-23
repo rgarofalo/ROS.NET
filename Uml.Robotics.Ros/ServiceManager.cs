@@ -132,25 +132,25 @@ namespace Uml.Robotics.Ros
                 if (shuttingDown)
                     return false;
 
-                if (IsServiceAdvertised(ops.service))
+                if (IsServiceAdvertised(ops.Service))
                 {
-                    logger.LogWarning($"Tried to advertise a service that is already advertised in this node [{ops.service}].");
+                    logger.LogWarning($"Tried to advertise a service that is already advertised in this node [{ops.Service}].");
                     return false;
                 }
-                if (ops.helper == null)
-                    ops.helper = new ServiceCallbackHelper<MReq, MRes>(ops.srv_func);
-                ServicePublication<MReq, MRes> pub = new ServicePublication<MReq, MRes>(ops.service, ops.md5sum, ops.datatype, ops.req_datatype, ops.res_datatype, ops.helper, ops.callback_queue);
+                if (ops.Helper == null)
+                    ops.Helper = new ServiceCallbackHelper<MReq, MRes>(ops.ServiceCallback);
+                ServicePublication<MReq, MRes> pub = new ServicePublication<MReq, MRes>(ops.Service, ops.Md5Sum, ops.DataType, ops.RequestDataType, ops.ResponseDataType, ops.Helper, ops.CallbackQueue);
                 servicePublications.Add(pub);
             }
 
             XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             args.Set(0, ThisNode.Name);
-            args.Set(1, ops.service);
+            args.Set(1, ops.Service);
             args.Set(2, string.Format("rosrpc://{0}:{1}", Network.Host, connectionManager.TCPPort));
             args.Set(3, xmlRpcManager.Uri);
             if (!Master.Execute("registerService", args, result, payload, true))
             {
-                throw new RosException($"RPC \"registerService\" for service '{ops.service}' failed.");
+                throw new RosException($"RPC \"registerService\" for service '{ops.Service}' failed.");
             }
 
             return true;

@@ -10,7 +10,6 @@ namespace Uml.Robotics.Ros
         ICallbackQueue callbackQueue;
         private ILogger Logger { get; } = ApplicationLogging.CreateLogger<SingleThreadSpinner>();
 
-
         /// <summary>
         /// Creats a spinner for the global ROS callback queue
         /// </summary>
@@ -18,7 +17,6 @@ namespace Uml.Robotics.Ros
         {
             this.callbackQueue = ROS.GlobalCallbackQueue;
         }
-
 
         /// <summary>
         /// Creates a spinner for the given callback queue
@@ -29,13 +27,11 @@ namespace Uml.Robotics.Ros
             this.callbackQueue = callbackQueue;
         }
 
-
         public void Spin()
         {
             Spin(CancellationToken.None);
             Logger.LogCritical("CallbackQueue thread broke out! This only can happen if ROS.ok is false.");
         }
-
 
         public void Spin(CancellationToken token)
         {
@@ -50,12 +46,12 @@ namespace Uml.Robotics.Ros
                     break;
 
                 DateTime end = DateTime.UtcNow;
-                var remainingTime = wallDuration - (end - begin);
+                TimeSpan spinDuration = end - begin;
+                var remainingTime = wallDuration - spinDuration;
                 if (remainingTime > TimeSpan.Zero)
                     Thread.Sleep(remainingTime);
             }
         }
-
 
         public void SpinOnce()
         {
@@ -71,7 +67,6 @@ namespace Uml.Robotics.Ros
         private CancellationTokenSource tokenSource = new CancellationTokenSource();
         private CancellationToken token;
 
-
         /// <summary>
         /// Creates a spinner for the global ROS callback queue
         /// </summary>
@@ -79,7 +74,6 @@ namespace Uml.Robotics.Ros
         {
             this.callbackQueue = ROS.GlobalCallbackQueue;
         }
-
 
         /// <summary>
         /// Create a spinner for the given callback queue

@@ -298,7 +298,7 @@ namespace Uml.Robotics.Ros
                 CallbackQueue = callbackQueue,
                 AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.CallbackQueue.AddCallback(cb);
+            ops.CallbackQueue.AddCallback(cb, cb.Uid);
             return await SubscribeAsync(ops);
         }
 
@@ -320,7 +320,7 @@ namespace Uml.Robotics.Ros
                 CallbackQueue = callbackQueue,
                 AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.CallbackQueue.AddCallback(cb);
+            ops.CallbackQueue.AddCallback(cb, cb.Uid);
             return await SubscribeAsync(ops);
         }
 
@@ -373,14 +373,14 @@ namespace Uml.Robotics.Ros
             where MReq : RosMessage, new()
             where MRes : RosMessage, new()
         {
-            ops.service = ResolveName(ops.service);
-            if (ops.callback_queue == null)
+            ops.Service = ResolveName(ops.Service);
+            if (ops.CallbackQueue == null)
             {
-                ops.callback_queue = CallbackQueue;
+                ops.CallbackQueue = CallbackQueue;
             }
             if (ServiceManager.Instance.AdvertiseService(ops))
             {
-                ServiceServer srv = new ServiceServer(ops.service, this);
+                ServiceServer srv = new ServiceServer(ops.Service, this);
                 lock (gate)
                 {
                     collection.ServiceServers.Add(srv);

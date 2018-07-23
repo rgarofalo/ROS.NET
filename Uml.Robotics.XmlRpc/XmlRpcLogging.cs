@@ -5,7 +5,7 @@ namespace Uml.Robotics.XmlRpc
 {
     public static class XmlRpcLogging
     {
-        private static ILoggerFactory _loggerFactory;
+        private static ILoggerFactory loggerFactory;
 
         public static bool Initialized
         {
@@ -13,10 +13,12 @@ namespace Uml.Robotics.XmlRpc
             {
                 lock (typeof(XmlRpcLogging))
                 {
-                    return _loggerFactory != null;
+                    return loggerFactory != null;
                 }
             }
         }
+
+        public static LogLevel ConsoleLogLevel { get; set; } = LogLevel.Information;
 
         public static ILoggerFactory LoggerFactory
         {
@@ -24,22 +26,21 @@ namespace Uml.Robotics.XmlRpc
             {
                 lock (typeof(XmlRpcLogging))
                 {
-                    if (_loggerFactory == null)
+                    if (loggerFactory == null)
                     {
-                        _loggerFactory = new LoggerFactory();
-                        _loggerFactory.AddProvider(
-                            new ConsoleLoggerProvider(
-                                (string text, LogLevel logLevel) => { return logLevel > LogLevel.Debug; }, true)
+                        loggerFactory = new LoggerFactory();
+                        loggerFactory.AddProvider(
+                            new ConsoleLoggerProvider((string text, LogLevel logLevel) => logLevel >= ConsoleLogLevel, true)
                         );
                     }
-                    return _loggerFactory;
+                    return loggerFactory;
                 }
             }
             set
             {
                 lock (typeof(XmlRpcLogging))
                 {
-                    _loggerFactory = value;
+                    loggerFactory = value;
                 }
             }
         }

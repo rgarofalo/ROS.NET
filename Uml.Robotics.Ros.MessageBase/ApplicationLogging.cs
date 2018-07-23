@@ -1,32 +1,37 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 
-
 namespace Uml.Robotics.Ros
 {
     public static class ApplicationLogging
     {
-        private static ILoggerFactory _loggerFactory;
+        private static ILoggerFactory loggerFactory;
+
+        public static LogLevel ConsoleLogLevel { get; set; } = LogLevel.Information;
 
         public static ILoggerFactory LoggerFactory
         {
             get
             {
-                if(_loggerFactory == null)
+                lock (typeof(ApplicationLogging))
                 {
-                    _loggerFactory = new LoggerFactory();
-                    _loggerFactory.AddProvider(
-                        new ConsoleLoggerProvider(
-                            (string text, LogLevel logLevel) => { return logLevel > LogLevel.Debug;}, true)
-                    );
+                    if (loggerFactory == null)
+                    {
+                        loggerFactory = new LoggerFactory();
+                        loggerFactory.AddProvider(
+                            new ConsoleLoggerProvider((string text, LogLevel logLevel) => logLevel >= ConsoleLogLevel, true)
+                        );
+                    }
+                    return loggerFactory;
                 }
-                return _loggerFactory;
             }
             set
             {
-                _loggerFactory = value;
+                lock (typeof(ApplicationLogging))
+                {
+                    loggerFactory = value;
+                }
             }
-
         }
 
         public static ILogger CreateLogger<T>() =>

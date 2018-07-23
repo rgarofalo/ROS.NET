@@ -44,8 +44,7 @@ namespace Uml.Robotics.Ros
             this.Callback = Callback;
         }
 
-
-        public virtual void call(RosMessage msg)
+        public virtual void Call(RosMessage msg)
         {
             Callback.SendEvent(msg);
         }

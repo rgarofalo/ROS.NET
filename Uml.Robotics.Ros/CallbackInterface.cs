@@ -101,7 +101,7 @@ namespace Uml.Robotics.Ros
                     return CallResult.Invalid;
                 i = queue.Dequeue();
             }
-            i.helper.call(i.message);
+            i.helper.Call(i.message);
             callback_state = false;
             return CallResult.Success;
         }

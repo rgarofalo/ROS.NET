@@ -411,7 +411,7 @@ namespace Uml.Robotics.Ros
                         if (was_full)
                             ++drops;
                         else
-                            info.CallbackQueue.AddCallback(info.SubscriptionQueue);
+                            info.CallbackQueue.AddCallback(info.SubscriptionQueue, info.SubscriptionQueue.Uid);
                     }
                 }
             }
@@ -476,7 +476,7 @@ namespace Uml.Robotics.Ros
                                 info.SubscriptionQueue.AddToCallbackQueue(info.Helper, latchedMessages[link].Message, nonconst_need_copy, ref wasFull, receiptTime);
                                 if (!wasFull)
                                 {
-                                    info.CallbackQueue.AddCallback(info.SubscriptionQueue);
+                                    info.CallbackQueue.AddCallback(info.SubscriptionQueue, info.SubscriptionQueue.Uid);
                                 }
                             }
                         }

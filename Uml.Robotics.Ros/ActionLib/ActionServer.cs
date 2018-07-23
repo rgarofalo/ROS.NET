@@ -122,7 +122,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 nextStatusPublishTime = DateTime.UtcNow + statusInterval;
                 var cb = new SpinCallbackImplementation(SpinCallback);
                 spinCallbackId = cb.Uid;
-                ROS.GlobalCallbackQueue.AddCallback(cb);
+                ROS.GlobalCallbackQueue.AddCallback(cb, spinCallbackId);
             }
 
             // Message consumers
@@ -308,24 +308,20 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             private Action callback;
 
-
             public SpinCallbackImplementation(Action callback)
             {
                 this.callback = callback;
             }
-
 
             public override void AddToCallbackQueue(ISubscriptionCallbackHelper helper, RosMessage msg, bool nonconst_need_copy, ref bool was_full, TimeData receipt_time)
             {
                 throw new NotImplementedException();
             }
 
-
             public override void Clear()
             {
                 throw new NotImplementedException();
             }
-
 
             internal override CallResult Call()
             {

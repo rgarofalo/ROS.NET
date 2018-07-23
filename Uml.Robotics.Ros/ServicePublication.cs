@@ -29,7 +29,7 @@ namespace Uml.Robotics.Ros
         {
             var cb = new ServiceCallback(this, helper, buf, link);
             this.callbackId = cb.Uid;
-            callback.AddCallback(cb);
+            callback.AddCallback(cb, cb.Uid);
             return cb.ResultTask;
         }
 

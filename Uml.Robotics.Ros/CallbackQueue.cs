@@ -14,7 +14,6 @@ namespace Uml.Robotics.Ros
         private int calling;
         private bool enabled;
         private Dictionary<long, IDInfo> idInfo = new Dictionary<long, IDInfo>();
-        private object idInfoMutex = new object();
         private AutoResetEvent sem = new AutoResetEvent(false);
         private List<CallbackInfo> callbacks = new List<CallbackInfo>();
         private TLS tls;
@@ -34,27 +33,23 @@ namespace Uml.Robotics.Ros
             get { return enabled; }
         }
 
-        public void AddCallback(CallbackInterface cb)
+        public void AddCallback(CallbackInterface cb, long ownerId)
         {
-            long owner_id = cb.Uid;
-            CallbackInfo info = new CallbackInfo { Callback = cb, RemovalId = owner_id };
-            //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: Add callback owner: {owner_id} {cb.ToString()}");
-
             lock (gate)
             {
                 if (!enabled)
                     return;
+
+                CallbackInfo info = new CallbackInfo { Callback = cb, RemovalId = ownerId };
                 callbacks.Add(info);
-                //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: Added");
                 count++;
-            }
-            lock (idInfoMutex)
-            {
-                if (!idInfo.ContainsKey(owner_id))
+
+                if (!idInfo.ContainsKey(ownerId))
                 {
-                    idInfo.Add(owner_id, new IDInfo { calling_rw_mutex = new object(), id = owner_id });
+                    idInfo.Add(ownerId, new IDInfo { calling_rw_mutex = new object(), id = ownerId });
                 }
             }
+
             NotifyOne();
         }
 
@@ -73,7 +68,7 @@ namespace Uml.Robotics.Ros
                 if (!sem.WaitOne(timeout))
                     return;
             }
-            //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: Enqueue TLS");
+
             lock (gate)
             {
                 if (count == 0)
@@ -85,10 +80,9 @@ namespace Uml.Robotics.Ros
                 count = 0;
                 calling += tls.Count;
             }
-            //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: TLS count {tls.Count}");
+
             while (tls.Count > 0 && ROS.OK)
             {
-                //Logger.LogDebug($"CallbackQueue@{cbthread.ManagedThreadId}: call {tls.head.Callback.ToString()}");
                 if (CallOne(tls) != CallOneResult.Empty)
                     ++called;
             }
@@ -119,10 +113,7 @@ namespace Uml.Robotics.Ros
 
         public void Dispose()
         {
-            lock (gate)
-            {
-                Disable();
-            }
+            Disable();
         }
 
         public void Enable()
@@ -137,19 +128,12 @@ namespace Uml.Robotics.Ros
         public void RemoveById(long ownerId)
         {
             SetupTls();
-            IDInfo idinfo;
-            lock (idInfoMutex)
+            lock (gate)
             {
                 if (!idInfo.ContainsKey(ownerId))
                     return;
-                idinfo = idInfo[ownerId];
-            }
-            if (idinfo.id == tls.calling_in_this_thread)
                 RemoveAll(ownerId);
-            else
-            {
-                logger.LogDebug("removeByID w/ WRONG THREAD ID");
-                RemoveAll(ownerId);
+                idInfo.Remove(ownerId);
             }
         }
 
@@ -162,7 +146,7 @@ namespace Uml.Robotics.Ros
             if (TryGetIdInfo(info.RemovalId, out IDInfo idinfo))
             {
                 CallbackInterface cb = info.Callback;
-                lock (idinfo.calling_rw_mutex)
+                lock (gate)
                 {
                     CallbackInterface.CallResult result = CallbackInterface.CallResult.Invalid;
                     tls.SpliceOut(info);
@@ -195,11 +179,11 @@ namespace Uml.Robotics.Ros
             return CallOneResult.Called;
         }
 
-        private void RemoveAll(long owner_id)
+        private void RemoveAll(long ownerId)
         {
             lock (gate)
             {
-                callbacks.RemoveAll(ici => ici.RemovalId == owner_id);
+                callbacks.RemoveAll(ici => ici.RemovalId == ownerId);
                 count = callbacks.Count;
             }
         }
@@ -227,7 +211,7 @@ namespace Uml.Robotics.Ros
 
         private bool TryGetIdInfo(long id, out IDInfo value)
         {
-            lock (idInfoMutex)
+            lock (gate)
             {
                 return idInfo.TryGetValue(id, out value);
             }
