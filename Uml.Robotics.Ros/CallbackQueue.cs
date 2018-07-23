@@ -146,7 +146,7 @@ namespace Uml.Robotics.Ros
             if (TryGetIdInfo(info.RemovalId, out IDInfo idinfo))
             {
                 CallbackInterface cb = info.Callback;
-                lock (gate)
+                lock (idinfo.calling_rw_mutex)
                 {
                     CallbackInterface.CallResult result = CallbackInterface.CallResult.Invalid;
                     tls.SpliceOut(info);
