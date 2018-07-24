@@ -276,7 +276,11 @@ namespace Uml.Robotics.Ros
 
             PendingConnectionDone(conn, requestTopicTask);
 
+#if NETCORE
             return requestTopicTask.IsCompletedSuccessfully;
+#else
+               return requestTopicTask.IsCompleted;  
+#endif
         }
 
         private void PendingConnectionDone(PendingConnection conn, Task<XmlRpcCallResult> callTask)

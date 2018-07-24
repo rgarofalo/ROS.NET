@@ -24,7 +24,7 @@ namespace Talker
                 ROS.Info()("Publishing a chatter message:    \"Blah blah blah " + count + "\"");
                 String pow = new String("Blah blah blah " + (count++));
 
-                Talker.publish(pow);
+                Talker.Publish(pow);
                 spinner.SpinOnce();
                 Thread.Sleep(1000);
             }

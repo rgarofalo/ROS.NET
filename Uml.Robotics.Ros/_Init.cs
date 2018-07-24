@@ -5,9 +5,12 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Runtime.Loader;
 
+#if NETCORE
+using System.Runtime.Loader;
+#endif
 using Microsoft.Extensions.Logging;
+
 using Uml.Robotics.XmlRpc;
 using std_msgs = Messages.std_msgs;
 using System.IO;
@@ -286,11 +289,20 @@ namespace Uml.Robotics.Ros
                 if (!atExitRegistered)
                 {
                     atExitRegistered = true;
+#if NETCORE
                     AssemblyLoadContext.Default.Unloading += (AssemblyLoadContext obj) =>
                     {
                         Shutdown();
                         WaitForShutdown();
                     };
+#else
+                    Process.GetCurrentProcess().EnableRaisingEvents = true;
+                    Process.GetCurrentProcess().Exited += (o, args) =>
+                    {
+                        _shutdown();
+                        WaitForShutdown();
+                    };
+#endif
 
                     Console.CancelKeyPress += (o, args) =>
                     {
@@ -317,6 +329,7 @@ namespace Uml.Robotics.Ros
                     // Load RosMessages from MessageBase assembly
                     msgRegistry.ParseAssemblyAndRegisterRosMessages(typeof(RosMessage).GetTypeInfo().Assembly);
 
+#if NETCORE
                     // Load RosMessages from all assemblies that depend on MessageBase
                     var candidates = MessageTypeRegistry.GetCandidateAssemblies("Uml.Robotics.Ros.MessageBase");
                     foreach (var assembly in candidates)
@@ -325,7 +338,15 @@ namespace Uml.Robotics.Ros
                         msgRegistry.ParseAssemblyAndRegisterRosMessages(assembly);
                         srvRegistry.ParseAssemblyAndRegisterRosServices(assembly);
                     }
+#else
+                    // Load RosMessages from Messages assembly
+                    var msgAssembly = Assembly.LoadFrom("Uml.Robotics.Ros.dll");
 
+                    logger.LogDebug($"Parse assembly: {msgAssembly.Location}");
+                    msgRegistry.ParseAssemblyAndRegisterRosMessages(msgAssembly);
+                    srvRegistry.ParseAssemblyAndRegisterRosServices(msgAssembly);
+             
+#endif
                     initOptions = options;
                     _ok = true;
 

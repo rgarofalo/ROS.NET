@@ -148,7 +148,7 @@ namespace Uml.Robotics.Ros
 
                     logger.LogError(e, e.Message);
 
-                    retryDelay = retryDelay * 2;
+                    retryDelay = retryDelay + retryDelay;
                     if (retryDelay > MAX_RETRY_DELAY)
                     {
                         retryDelay = MAX_RETRY_DELAY;

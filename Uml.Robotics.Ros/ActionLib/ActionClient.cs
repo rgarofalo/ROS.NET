@@ -578,8 +578,15 @@ namespace Uml.Robotics.Ros.ActionLib
 
             // Loop over all goal handles and update their state, mark goal handles that are done for deletion
             var completedGoals = new List<string>();
+#if NETCORE
             foreach (var (key, value) in goalHandlesReferenceCopy)
             {
+#else
+            foreach(KeyValuePair<string, ClientGoalHandle<TGoal, TResult, TFeedback>> kv in goalHandlesReferenceCopy)
+            {
+                var value = kv.Value;
+                var key= kv.Key;
+#endif
                 if (value.LatestResultAction == null || ROS.ToDateTime(value.LatestResultAction.Header.stamp) < ROS.ToDateTime(timestamp))
                 {
                     var goalStatus = FindGoalInStatusList(statusArray, key);
