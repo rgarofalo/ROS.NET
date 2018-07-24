@@ -7,6 +7,9 @@ using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
 
+#if NETCORE
+using System.Runtime.Loader;
+#endif
 namespace Uml.Robotics.Ros
 {
     public class TypeRegistryBase
@@ -44,14 +47,25 @@ namespace Uml.Robotics.Ros
             if (tagAssemblies.Length == 0)
                 throw new ArgumentException("At least one tag assembly name must be specified.", nameof(tagAssemblies));
 
+            var referenceAssemblies = new HashSet<string>(tagAssemblies, StringComparer.OrdinalIgnoreCase);
+
+#if NETCORE
             var context = DependencyContext.Load(Assembly.GetEntryAssembly());
             var loadContext = AssemblyLoadContext.Default;
 
-            var referenceAssemblies = new HashSet<string>(tagAssemblies, StringComparer.OrdinalIgnoreCase);
             return context.RuntimeLibraries
                 .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
                 .SelectMany(x => x.GetDefaultAssemblyNames(context))
                 .Select(x => loadContext.LoadFromAssemblyName(x));
+#else
+            //var entryAssembly = Assembly.Load(new AssemblyName(tagAssemblies[0]));
+            var context = DependencyContext.Load(Assembly.GetEntryAssembly());
+
+            return context.RuntimeLibraries
+               .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
+               .SelectMany(x => x.GetDefaultAssemblyNames(context)).Select(Assembly.Load);
+#endif
+
         }
     }
 }

@@ -125,7 +125,7 @@ namespace Uml.Robotics.Ros
             {
                 cancel.ThrowIfCancellationRequested();
 
-                var tcpClient = await listener.AcceptTcpClientAsync();
+                var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
                 var connection = new Connection(tcpClient);
                 AddConnection(connection);
                 var t = StartReadHeader(connection);

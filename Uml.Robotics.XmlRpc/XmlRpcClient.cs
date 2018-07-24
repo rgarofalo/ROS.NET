@@ -53,7 +53,11 @@ namespace Uml.Robotics.XmlRpc
             req.Method = "POST";
             req.ContentType = "text/xml; charset=utf-8";
 
+#if NETCORE
             using (var stream = await req.GetRequestStreamAsync())
+#else
+            using (var stream =  req.GetRequestStream())
+#endif
             {
                 // serialize request into memory stream
                 var buffer = new MemoryStream();
@@ -64,8 +68,11 @@ namespace Uml.Robotics.XmlRpc
 
                 await buffer.CopyToAsync(stream);
             }
-
+#if NETCORE
             using (var response = await req.GetResponseAsync())
+#else
+            using (var response = req.GetResponse())
+#endif
             {
                 var encoding = Encoding.UTF8;
                 using (var reader = new StreamReader(response.GetResponseStream(), encoding))
