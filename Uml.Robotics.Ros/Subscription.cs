@@ -63,7 +63,7 @@ namespace Uml.Robotics.Ros
             {
                 lock (gate)
                 {
-                    return publisherLinks.Count;
+                    return publisherLinks.Count(x => x.IsConnected);        // only count publishers with established connection (post header handshake)
                 }
             }
         }
@@ -159,25 +159,24 @@ namespace Uml.Robotics.Ros
             return Network.SplitUri(uri1, out h1, out p1) && Network.SplitUri(uri2, out h2, out p2) && h1 == h2 && p1 == p2;
         }
 
-        public void RemovePublisherLink(PublisherLink pub)
-        {
-            lock (gate)
-            {
-                if (publisherLinks.Contains(pub))
-                {
-                    publisherLinks.Remove(pub);
-                }
-
-                if (pub.Latched)
-                    latchedMessages.Remove(pub);
-            }
-        }
-
         public void AddPublisherLink(PublisherLink pub)
         {
             lock (gate)
             {
                 publisherLinks.Add(pub);
+            }
+        }
+
+        public void RemovePublisherLink(PublisherLink pub)
+        {
+            lock (gate)
+            {
+                publisherLinks.Remove(pub);
+
+                if (pub.Latched)
+                {
+                    latchedMessages.Remove(pub);
+                }
             }
         }
 
@@ -405,13 +404,17 @@ namespace Uml.Robotics.Ros
                         t = msg;
                         t.connection_header = msg.connection_header;
                         t.Serialized = null;
-                        bool was_full = false;
+                        bool wasFull = false;
                         bool nonconst_need_copy = callbacks.Count > 1;
-                        info.SubscriptionQueue.AddToCallbackQueue(info.Helper, t, nonconst_need_copy, ref was_full, receipt_time);
-                        if (was_full)
+                        info.SubscriptionQueue.AddToCallbackQueue(info.Helper, t, nonconst_need_copy, ref wasFull, receipt_time);
+                        if (wasFull)
+                        {
                             ++drops;
+                        }
                         else
+                        {
                             info.CallbackQueue.AddCallback(info.SubscriptionQueue, info.SubscriptionQueue.Uid);
+                        }
                     }
                 }
             }

@@ -137,6 +137,7 @@ namespace Uml.Robotics.Ros
             {
                 if (Dropped)
                     return;
+
                 if (subscriberLinks.Contains(link))
                 {
                     lnk = link;
@@ -147,8 +148,11 @@ namespace Uml.Robotics.Ros
                     }
                 }
             }
+
             if (lnk != null)
+            {
                 HandlePeerDisconnect(lnk);
+            }
         }
 
         internal void Publish(MessageAndSerializerFunc msg)

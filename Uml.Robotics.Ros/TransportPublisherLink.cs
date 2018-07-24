@@ -20,6 +20,7 @@ namespace Uml.Robotics.Ros
         private readonly ILogger logger = ApplicationLogging.CreateLogger<TransportPublisherLink>();
 
         Connection connection;
+        bool connected;     // set to true after header handshake
         bool dropping;
 
         string host;
@@ -33,6 +34,9 @@ namespace Uml.Robotics.Ros
         public TransportPublisherLink(Subscription parent, string xmlRpcUri)
             : base(parent, xmlRpcUri)
         {
+            if (parent == null)
+                throw new ArgumentNullException(nameof(parent));
+
             retryDelay = BASE_RETRY_DELAY;
             cts = new CancellationTokenSource();
             cancel = cts.Token;
@@ -42,12 +46,14 @@ namespace Uml.Robotics.Ros
         {
             dropping = true;
             cts.Cancel();
-            Parent.RemovePublisherLink(this);
             if (receiveLoop != null)
             {
                 receiveLoop.WhenCompleted().Wait();       // wait for publisher loop to terminate
             }
         }
+
+        public override bool IsConnected =>
+            connected;
 
         private async Task WriteHeader()
         {
@@ -76,8 +82,12 @@ namespace Uml.Robotics.Ros
 
                     // write/read header handshake
                     await WriteHeader();
+
                     var headerFields = await connection.ReadHeader(cancel);
                     SetHeader(new Header(headerFields));
+
+                    // connection established
+                    this.connected = true;
 
                     while (!cancel.IsCancellationRequested)
                     {
@@ -106,6 +116,7 @@ namespace Uml.Robotics.Ros
                 }
                 finally
                 {
+                    this.connected = false;
                     this.connection = null;
                 }
             }
@@ -165,10 +176,7 @@ namespace Uml.Robotics.Ros
             Stats.BytesReceived += m.Serialized.Length;
             Stats.MessagesReceived++;
             m.connection_header = this.Header.Values;
-            if (Parent != null)
-                Stats.Drops += Parent.HandleMessage(m, true, false, connection.Header.Values, this);
-            else
-                Console.WriteLine($"{nameof(Parent)} is null");
+            Stats.Drops += Parent.HandleMessage(m, true, false, connection.Header.Values, this);
         }
     }
 }

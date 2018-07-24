@@ -44,6 +44,8 @@ namespace Uml.Robotics.Ros
         public Header Header =>
             header;
 
+        public abstract bool IsConnected { get; }
+
         public void SetHeader(Header header)
         {
             if (!header.Values.ContainsKey("md5sum"))

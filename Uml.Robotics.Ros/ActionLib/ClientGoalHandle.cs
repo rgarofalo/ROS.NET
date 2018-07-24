@@ -17,6 +17,7 @@ namespace Uml.Robotics.Ros.ActionLib
         private readonly object gate = new object();
         private TaskCompletionSource<TResult> tcs = new TaskCompletionSource<TResult>();
         private IActionClient<TGoal, TResult, TFeedback> actionClient;
+        internal int statusMissing;     // internal couter used to track if this goal handle is missing in multiple status messsages of server
 
         public string Id { get; }
         public GoalActionMessage<TGoal> Goal { get; }
@@ -100,6 +101,7 @@ namespace Uml.Robotics.Ros.ActionLib
             {
                 this.State = nextState;
                 goalStatus = this.LatestGoalStatus;
+                statusMissing = 0;
             }
 
             // set result on task completion source when we enter a terminal communication state
