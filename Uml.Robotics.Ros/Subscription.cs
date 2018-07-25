@@ -413,7 +413,7 @@ namespace Uml.Robotics.Ros
                         }
                         else
                         {
-                            info.CallbackQueue.AddCallback(info.SubscriptionQueue, info.SubscriptionQueue.Uid);
+                            info.CallbackQueue.AddCallback(info.SubscriptionQueue, info.SubscriptionQueue);
                         }
                     }
                 }
@@ -479,7 +479,7 @@ namespace Uml.Robotics.Ros
                                 info.SubscriptionQueue.AddToCallbackQueue(info.Helper, latchedMessages[link].Message, nonconst_need_copy, ref wasFull, receiptTime);
                                 if (!wasFull)
                                 {
-                                    info.CallbackQueue.AddCallback(info.SubscriptionQueue, info.SubscriptionQueue.Uid);
+                                    info.CallbackQueue.AddCallback(info.SubscriptionQueue, helper);
                                 }
                             }
                         }
@@ -499,7 +499,7 @@ namespace Uml.Robotics.Ros
                     if (info.Helper == helper)
                     {
                         info.SubscriptionQueue.Clear();
-                        info.CallbackQueue.RemoveById(info.SubscriptionQueue.Uid);
+                        info.CallbackQueue.RemoveByOwner(helper);
                         callbacks.Remove(info);
 
                         break;

@@ -298,7 +298,7 @@ namespace Uml.Robotics.Ros
                 CallbackQueue = callbackQueue,
                 AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.CallbackQueue.AddCallback(cb, cb.Uid);
+            ops.CallbackQueue.AddCallback(cb, ops.CallbackHelper);
             return await SubscribeAsync(ops);
         }
 
@@ -320,7 +320,7 @@ namespace Uml.Robotics.Ros
                 CallbackQueue = callbackQueue,
                 AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.CallbackQueue.AddCallback(cb, cb.Uid);
+            ops.CallbackQueue.AddCallback(cb, ops.CallbackHelper);
             return await SubscribeAsync(ops);
         }
 

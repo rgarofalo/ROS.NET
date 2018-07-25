@@ -11,7 +11,7 @@ namespace Uml.Robotics.Ros
     /// A callback queue which runs a background thread for calling callbacks. It does not need a spinner. The queue is disabled
     /// by default. The background thread is created when the queue gets enabled.
     /// </summary>
-    public class CallbackQueueThreaded : ICallbackQueue
+    /*public class CallbackQueueThreaded : ICallbackQueue
     {
         private readonly ILogger logger = ApplicationLogging.CreateLogger<CallbackQueueThreaded>();
         private readonly object gate = new object();
@@ -236,5 +236,5 @@ namespace Uml.Robotics.Ros
 
             sem.Set();
         }
-    }
+    }*/
 }

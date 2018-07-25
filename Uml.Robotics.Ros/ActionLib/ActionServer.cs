@@ -73,11 +73,12 @@ namespace Uml.Robotics.Ros.ActionLib
 
         public void Shutdown()
         {
-            if (spinCallbackId != 0)
-            {
-                ROS.GlobalCallbackQueue.RemoveById(spinCallbackId);
-                spinCallbackId = 0;
-            }
+            // ## FIXME: AKo: Spin callbacks never worked ..
+            //if (spinCallbackId != 0)
+            //{
+            //    ROS.GlobalCallbackQueue.RemoveById(spinCallbackId);
+            //    spinCallbackId = 0;
+            //}
             resultPublisher.Dispose();
             feedbackPublisher.Dispose();
             goalStatusPublisher.Dispose();
@@ -121,8 +122,8 @@ namespace Uml.Robotics.Ros.ActionLib
                 statusInterval = new TimeSpan(0, 0, split.seconds, split.milliseconds);
                 nextStatusPublishTime = DateTime.UtcNow + statusInterval;
                 var cb = new SpinCallbackImplementation(SpinCallback);
-                spinCallbackId = cb.Uid;
-                ROS.GlobalCallbackQueue.AddCallback(cb, spinCallbackId);
+                //spinCallbackId = cb.Uid;                                                  // ## FIXME
+                //ROS.GlobalCallbackQueue.AddCallback(cb, spinCallbackId);
             }
 
             // Message consumers

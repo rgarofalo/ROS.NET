@@ -20,8 +20,8 @@ namespace Uml.Robotics.Ros
         private readonly ILogger logger = ApplicationLogging.CreateLogger<TransportPublisherLink>();
 
         Connection connection;
-        bool connected;     // set to true after header handshake
-        bool dropping;
+        volatile bool connected;     // set to true for first time after successful header handshake
+        volatile bool dropping;
 
         string host;
         int port;
@@ -162,7 +162,7 @@ namespace Uml.Robotics.Ros
 
         public void Initialize(string host, int port)
         {
-            logger.LogDebug("Init transport publisher link: " + Parent.Name);
+            logger.LogDebug("Init transport publisher link: {0}", Parent.Name);
 
             this.host = host;
             this.port = port;

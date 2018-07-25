@@ -203,8 +203,8 @@ namespace Xamla.Robotics.Ros.Async
             if (values == null)
                 throw new ArgumentNullException("value");
 
-            var collection = values as ICollection<T>;       // try to get information about length of enumerable sequence
-            if (collection != null)
+            // try to get information about length of enumerable sequence
+            if (values is ICollection<T> collection)
             {
                 int insertCount = collection.Count;
                 EnsureFreeSpace(insertCount);
@@ -241,6 +241,49 @@ namespace Xamla.Robotics.Ros.Async
             RemoveRange(index, 1);
         }
 
+        public void RemoveAll(Func<T, bool> predicate)
+        {
+            if (count == 0)
+                return;
+
+            int i = IndexToBufferOffset(0);     // src index
+            int j = i;                          // dst index
+
+            int removed = 0;
+            for (int k = 0; k < count; k += 1)
+            {
+                var x = buffer[i];
+                if (predicate(x))
+                {
+                    // remove this element, j is not incremented
+                    removed += 1;
+                }
+                else
+                {
+                    if (i != j)
+                    {
+                        buffer[j] = x;
+                    }
+
+                    j += 1;
+                    if (j >= buffer.Length)
+                        j = 0;
+                }
+
+                i += 1;
+                if (i >= buffer.Length)
+                    i = 0;
+            }
+
+            if (removed > 0)
+            {
+                ClearSegment(count - removed, removed);     // clear removed elements at end
+                count -= removed;
+                TrimExcess();
+                ++version;
+            }
+        }
+
         public void RemoveRange(int index, int count)
         {
             if (count <= 0)
@@ -272,6 +315,22 @@ namespace Xamla.Robotics.Ros.Async
                 if (i >= buffer.Length)
                     i = 0;
                 if (object.Equals(buffer[i], item))
+                    return j;
+            }
+            return -1;
+        }
+
+        public int Find(Func<T, bool> predicate)
+        {
+            if (predicate == null)
+                throw new ArgumentNullException(nameof(predicate));
+
+            int i = offset;
+            for (int j = 0; j < count; ++j, ++i)
+            {
+                if (i >= buffer.Length)
+                    i = 0;
+                if (predicate(buffer[i]))
                     return j;
             }
             return -1;

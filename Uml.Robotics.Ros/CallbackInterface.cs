@@ -110,11 +110,6 @@ namespace Uml.Robotics.Ros
 
     public abstract class CallbackInterface
     {
-        private static long nextId = 0;
-        private static long NewUniqueId() =>
-            Interlocked.Increment(ref nextId);
-
-        public long Uid { get; }
         public delegate void CallbackDelegate(RosMessage msg);
         public event CallbackDelegate Event;
 
@@ -122,7 +117,6 @@ namespace Uml.Robotics.Ros
 
         public CallbackInterface()
         {
-            this.Uid = NewUniqueId();
         }
 
         public CallbackInterface(CallbackDelegate f)
