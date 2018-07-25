@@ -451,5 +451,14 @@ namespace Xamla.Robotics.Ros.Async
             exception = exception.Flatten();
             ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
         }
+
+        public static bool HasCompletedSuccessfully(this Task t)
+        {
+#if !NETCORE
+            return t.Status == TaskStatus.RanToCompletion;
+#else
+            return t.IsCompletedSuccessfully;
+#endif
+        }
     }
 }

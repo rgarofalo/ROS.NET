@@ -701,14 +701,11 @@ namespace Uml.Robotics.Ros
 
             var pubUpdateTask = PubUpdate(topic, publicationUris);
             pubUpdateTask.WhenCompleted().WhenCompleted().Wait();
-#if NETCORE
 
-            if (pubUpdateTask.IsCompletedSuccessfully && pubUpdateTask.Result)
-#else
-            if (pubUpdateTask.IsCompleted && pubUpdateTask.Result)
-
-#endif
+            if (pubUpdateTask.HasCompletedSuccessfully() && pubUpdateTask.Result)
+            {
                 XmlRpcManager.ResponseInt(1, "", 0)(result);
+            }
             else
             {
                 const string error = "Unknown error while handling XmlRpc call to pubUpdate";

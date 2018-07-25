@@ -5,11 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Text;
 
-#if NETCORE
-using System.Runtime.Loader;
-#endif
 namespace Uml.Robotics.Ros
 {
     public class TypeRegistryBase
@@ -56,16 +52,15 @@ namespace Uml.Robotics.Ros
             return context.RuntimeLibraries
                 .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
                 .SelectMany(x => x.GetDefaultAssemblyNames(context))
-                .Select(x => loadContext.LoadFromAssemblyName(x));
+                .Select(loadContext.LoadFromAssemblyName);
 #else
-            //var entryAssembly = Assembly.Load(new AssemblyName(tagAssemblies[0]));
             var context = DependencyContext.Load(Assembly.GetEntryAssembly());
 
             return context.RuntimeLibraries
-               .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
-               .SelectMany(x => x.GetDefaultAssemblyNames(context)).Select(Assembly.Load);
+                .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
+                .SelectMany(x => x.GetDefaultAssemblyNames(context))
+                .Select(Assembly.Load);
 #endif
-
         }
     }
 }

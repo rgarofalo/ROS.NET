@@ -578,15 +578,12 @@ namespace Uml.Robotics.Ros.ActionLib
 
             // Loop over all goal handles and update their state, mark goal handles that are done for deletion
             var completedGoals = new List<string>();
-#if NETCORE
-            foreach (var (key, value) in goalHandlesReferenceCopy)
-            {
-#else
-            foreach(KeyValuePair<string, ClientGoalHandle<TGoal, TResult, TFeedback>> kv in goalHandlesReferenceCopy)
+
+            foreach (KeyValuePair<string, ClientGoalHandle<TGoal, TResult, TFeedback>> kv in goalHandlesReferenceCopy)
             {
                 var value = kv.Value;
-                var key= kv.Key;
-#endif
+                var key = kv.Key;
+
                 if (value.LatestResultAction == null || ROS.ToDateTime(value.LatestResultAction.Header.stamp) < ROS.ToDateTime(timestamp))
                 {
                     var goalStatus = FindGoalInStatusList(statusArray, key);
@@ -1046,31 +1043,15 @@ namespace Uml.Robotics.Ros.ActionLib
         }
     }
 
-
     public enum CommunicationState
     {
-        [Display(Description = "WAITING_FOR_GOAL_ACK")]
         WAITING_FOR_GOAL_ACK,
-
-        [Display(Description = "PENDING")]
         PENDING,
-
-        [Display(Description = "ACTIVE")]
         ACTIVE,
-
-        [Display(Description = "WAITING_FOR_RESULT")]
         WAITING_FOR_RESULT,
-
-        [Display(Description = "WAITING_FOR_CANCEL_ACK")]
         WAITING_FOR_CANCEL_ACK,
-
-        [Display(Description = "RECALLING")]
         RECALLING,
-
-        [Display(Description = "PREEMPTING")]
         PREEMPTING,
-
-        [Display(Description = "DONE")]
         DONE
     }
 }

@@ -299,7 +299,7 @@ namespace Uml.Robotics.Ros
                     Process.GetCurrentProcess().EnableRaisingEvents = true;
                     Process.GetCurrentProcess().Exited += (o, args) =>
                     {
-                        _shutdown();
+                        Shutdown();
                         WaitForShutdown();
                     };
 #endif
@@ -339,13 +339,15 @@ namespace Uml.Robotics.Ros
                         srvRegistry.ParseAssemblyAndRegisterRosServices(assembly);
                     }
 #else
+                    // ## TODO Message assembly loading seems to be incomplete for the .NET4.62 case
+
                     // Load RosMessages from Messages assembly
                     var msgAssembly = Assembly.LoadFrom("Uml.Robotics.Ros.dll");
 
                     logger.LogDebug($"Parse assembly: {msgAssembly.Location}");
                     msgRegistry.ParseAssemblyAndRegisterRosMessages(msgAssembly);
                     srvRegistry.ParseAssemblyAndRegisterRosServices(msgAssembly);
-             
+
 #endif
                     initOptions = options;
                     _ok = true;
