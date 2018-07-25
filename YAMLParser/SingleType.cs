@@ -12,7 +12,7 @@ namespace FauxMessages
     public class SingleType
     {
         // TODO extend check to other C# keywords
-        private static readonly string[] CSharpKeywords = { "object", "params" };
+        private static readonly string[] CSharpKeywords = { "object", "params", "namespace", "const", "static" };
 
         private static bool IsCSharpKeyword(string name)
         {
@@ -135,8 +135,9 @@ namespace FauxMessages
                 {
                     otherstuff = otherstuff.Replace("-1", "255");
                 }
+
                 Const = isconst;
-                bool wantsconstructor = true;
+                bool wantsconstructor = !KnownStuff.IsPrimitiveType(this);
                 if (otherstuff.Contains("="))
                 {
                     string[] chunks = otherstuff.Split('=');
@@ -152,10 +153,14 @@ namespace FauxMessages
                 {
                     if (!type.Equals("string", StringComparison.OrdinalIgnoreCase))
                     {
-                        prefix = "const ";
+                        if (KnownStuff.IsPrimitiveType(this))
+                            prefix = "const ";
+                        else
+                            prefix = "static readonly ";
                         wantsconstructor = false;
                     }
                 }
+
                 string t = KnownStuff.GetNamespacedType(this, type);
                 if (otherstuff.Contains('='))
                 {
@@ -169,10 +174,11 @@ namespace FauxMessages
                     else
                         suffix = KnownStuff.GetConstTypesAffix(type);
                 }
-                else{
+                else
+                {
                     if (type == "string")
                         suffix = " = \"\"";
-                    else
+                    else if (wantsconstructor)
                         suffix = " = new " + prefix + t + "()";
                 }
                 output = lowestindent + "public " + prefix + t + " " + name + otherstuff + suffix + ";";

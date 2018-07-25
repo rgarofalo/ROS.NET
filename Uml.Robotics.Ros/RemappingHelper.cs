@@ -17,8 +17,8 @@ namespace Uml.Robotics.Ros
                 {
                     if (args[i].Contains(":="))
                     {
-                        string[] chunks = args[i].Split(new[] { ':' }, 2); // Handles master URIs with semi-columns such as http://IP
-                        chunks[1] = chunks[1].TrimStart('=').Trim();
+                        string[] chunks = args[i].Split(new string[] { ":=" }, 2, StringSplitOptions.None);
+                        chunks[1] = chunks[1].Trim();
                         chunks[0] = chunks[0].Trim();
                         remapping.Add(chunks[0], chunks[1]);
                         switch (chunks[0])

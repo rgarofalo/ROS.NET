@@ -329,8 +329,7 @@ namespace Uml.Robotics.Ros
                     // Load RosMessages from MessageBase assembly
                     msgRegistry.ParseAssemblyAndRegisterRosMessages(typeof(RosMessage).GetTypeInfo().Assembly);
 
-#if NETCORE
-                    // Load RosMessages from all assemblies that depend on MessageBase
+                    // Load RosMessages from all assemblies that reference Uml.Robotics.Ros.MessageBas
                     var candidates = MessageTypeRegistry.GetCandidateAssemblies("Uml.Robotics.Ros.MessageBase");
                     foreach (var assembly in candidates)
                     {
@@ -338,17 +337,7 @@ namespace Uml.Robotics.Ros
                         msgRegistry.ParseAssemblyAndRegisterRosMessages(assembly);
                         srvRegistry.ParseAssemblyAndRegisterRosServices(assembly);
                     }
-#else
-                    // ## TODO Message assembly loading seems to be incomplete for the .NET4.62 case
 
-                    // Load RosMessages from Messages assembly
-                    var msgAssembly = Assembly.LoadFrom("Uml.Robotics.Ros.dll");
-
-                    logger.LogDebug($"Parse assembly: {msgAssembly.Location}");
-                    msgRegistry.ParseAssemblyAndRegisterRosMessages(msgAssembly);
-                    srvRegistry.ParseAssemblyAndRegisterRosServices(msgAssembly);
-
-#endif
                     initOptions = options;
                     _ok = true;
 
