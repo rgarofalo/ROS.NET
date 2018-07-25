@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Loader;
 using System.Text;
 
 #if NETCORE
@@ -48,9 +47,10 @@ namespace Uml.Robotics.Ros
                 throw new ArgumentException("At least one tag assembly name must be specified.", nameof(tagAssemblies));
 
             var referenceAssemblies = new HashSet<string>(tagAssemblies, StringComparer.OrdinalIgnoreCase);
+            var context = DependencyContext.Load(Assembly.GetEntryAssembly());
 
 #if NETCORE
-            var context = DependencyContext.Load(Assembly.GetEntryAssembly());
+
             var loadContext = AssemblyLoadContext.Default;
 
             return context.RuntimeLibraries
@@ -58,8 +58,6 @@ namespace Uml.Robotics.Ros
                 .SelectMany(x => x.GetDefaultAssemblyNames(context))
                 .Select(x => loadContext.LoadFromAssemblyName(x));
 #else
-            //var entryAssembly = Assembly.Load(new AssemblyName(tagAssemblies[0]));
-            var context = DependencyContext.Load(Assembly.GetEntryAssembly());
 
             return context.RuntimeLibraries
                .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
