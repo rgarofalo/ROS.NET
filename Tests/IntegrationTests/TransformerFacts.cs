@@ -9,7 +9,7 @@ using Uml.Robotics.Ros;
 using tf = Uml.Robotics.Ros.Transforms;
 
 
-namespace Uml.Robotics.Ros.UnitTests
+namespace Uml.Robotics.Ros.IntegrationTests
 {
     [Collection(RosFixture.ROS_COLLECTION)]
     public class TransformerFacts
@@ -20,6 +20,8 @@ namespace Uml.Robotics.Ros.UnitTests
 
         public TransformerFacts(RosFixture rosFixture)
         {
+            this.rosFixture = rosFixture;
+
             when = ROS.GetTime();
             transformer = new tf.Transformer();
         }
