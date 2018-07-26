@@ -63,16 +63,16 @@ namespace FauxMessages
             switch (type.ToLower())
             {
                 case "decimal":
-                    return "m";
+                    return "M";
                 case "single":
                 case "float":
-                    return "f";
+                    return "F";
                 case "long":
-                    return "l";
+                    return "L";
                 case "ulong":
-                    return "ul";
+                    return "UL";
                 case "uint":
-                    return "u";
+                    return "U";
                 default:
                     return "";
             }
