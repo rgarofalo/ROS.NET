@@ -703,7 +703,6 @@ namespace Uml.Robotics.Ros
             pubUpdateTask.WhenCompleted().WhenCompleted().Wait();
 
             if (pubUpdateTask.HasCompletedSuccessfully() && pubUpdateTask.Result)
-            {
                 XmlRpcManager.ResponseInt(1, "", 0)(result);
             else
             {

@@ -50,22 +50,18 @@ namespace Uml.Robotics.Ros
 
 #if NETCORE
             var context = DependencyContext.Load(Assembly.GetEntryAssembly());
-
-#if NETCORE
-
             var loadContext = AssemblyLoadContext.Default;
-
+ 
             return context.RuntimeLibraries
                 .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
                 .SelectMany(x => x.GetDefaultAssemblyNames(context))
-                .Select(loadContext.LoadFromAssemblyName);
+                .Select(x => loadContext.LoadFromAssemblyName(x));
 #else
             var context = DependencyContext.Load(Assembly.GetEntryAssembly());
 
             return context.RuntimeLibraries
-                .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
-                .SelectMany(x => x.GetDefaultAssemblyNames(context))
-                .Select(Assembly.Load);
+               .Where(x => x.Dependencies.Any(d => referenceAssemblies.Contains(d.Name)))
+               .SelectMany(x => x.GetDefaultAssemblyNames(context)).Select(Assembly.Load);
 #endif
         }
     }
