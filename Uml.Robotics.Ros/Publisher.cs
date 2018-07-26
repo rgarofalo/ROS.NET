@@ -60,17 +60,18 @@ namespace Uml.Robotics.Ros
 
         internal async Task Unadvertise()
         {
-            if (!unadvertised)
-            {
-                unadvertised = true;
-                await TopicManager.Instance.Unadvertise(topic, callbacks);
-            }
+            if (unadvertised)
+                return;
+
+            unadvertised = true;
+            await TopicManager.Instance.Unadvertise(topic, callbacks).ConfigureAwait(false);
         }
 
         public void Dispose()
         {
-            var t = Unadvertise();
-            t.WhenCompleted().Wait();
+            Unadvertise()
+                .WhenCompleted()
+                .Wait();
         }
     }
 }

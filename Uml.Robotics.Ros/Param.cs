@@ -44,7 +44,7 @@ namespace Uml.Robotics.Ros
 
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
-            bool success = await Master.ExecuteAsync("subscribeParam", parm, result, payload, false);
+            bool success = await Master.ExecuteAsync("subscribeParam", parm, result, payload, false).ConfigureAwait(false);
 
             lock (gate)
             {
@@ -218,40 +218,40 @@ namespace Uml.Robotics.Ros
         private static async Task<XmlRpcValue> GetParamCheckedAsync(string key, bool useCache = false)
         {
             var result = new XmlRpcValue();
-            if (!await GetParamAsync(key, result, useCache))
+            if (!await GetParamAsync(key, result, useCache).ConfigureAwait(false))
                 throw new RosException($"Getting ROS param '{key}' failed.");
             return result;
         }
 
         private static async Task<XmlRpcValue> GetParamTypeCheckedAsync(string key, XmlRpcType expectedType, bool useCache = false)
         {
-            var result = await GetParamCheckedAsync(key, useCache);
+            var result = await GetParamCheckedAsync(key, useCache).ConfigureAwait(false);
             if (result.Type != expectedType)
                 throw new XmlRpcException($"{expectedType} response expected");
             return result;
         }
 
         public static async Task<int> GetIntAsync(string key) =>
-            (await GetParamCheckedAsync(key)).GetInt();
+            (await GetParamCheckedAsync(key).ConfigureAwait(false)).GetInt();
 
         public static async Task<bool> GetBoolAsync(string key) =>
-            (await GetParamCheckedAsync(key)).GetBool();
+            (await GetParamCheckedAsync(key).ConfigureAwait(false)).GetBool();
 
         public static async Task<double> GetDoubleAsync(string key) =>
-            (await GetParamCheckedAsync(key)).GetDouble();
+            (await GetParamCheckedAsync(key).ConfigureAwait(false)).GetDouble();
 
         public static async Task<string> GetStringAsync(string key) =>
-            (await GetParamCheckedAsync(key)).GetString();
+            (await GetParamCheckedAsync(key).ConfigureAwait(false)).GetString();
 
         public static  async Task<DateTime> GetDateTimeAsync(string key)
         {
-            var rpcResult = await GetParamTypeCheckedAsync(key, XmlRpcType.DateTime);
+            var rpcResult = await GetParamTypeCheckedAsync(key, XmlRpcType.DateTime).ConfigureAwait(false);
             return rpcResult.GetDateTime();
         }
 
         public static  async Task<byte[]> GetBinaryAsync(string key)
         {
-            var rpcResult = await GetParamTypeCheckedAsync(key, XmlRpcType.Base64);
+            var rpcResult = await GetParamTypeCheckedAsync(key, XmlRpcType.Base64).ConfigureAwait(false);
             return rpcResult.GetBinary();
         }
 
@@ -326,7 +326,7 @@ namespace Uml.Robotics.Ros
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
             parm.Set(0, ThisNode.Name);
-            if (!await Master.ExecuteAsync("getParamNames", parm, result, payload, false))
+            if (!await Master.ExecuteAsync("getParamNames", parm, result, payload, false).ConfigureAwait(false))
                 return ret;
             if (result.Count != 3 || result[0].GetInt() != 1 || result[2].Type != XmlRpcType.Array)
             {
@@ -352,7 +352,7 @@ namespace Uml.Robotics.Ros
             var payload = new XmlRpcValue();
             parm.Set(0, ThisNode.Name);
             parm.Set(1, Names.Resolve(key));
-            if (!await Master.ExecuteAsync("hasParam", parm, result, payload, false))
+            if (!await Master.ExecuteAsync("hasParam", parm, result, payload, false).ConfigureAwait(false))
                 return false;
             if (result.Count != 3 || result[0].GetInt() != 1 || result[2].Type != XmlRpcType.Boolean)
                 return false;
@@ -371,7 +371,7 @@ namespace Uml.Robotics.Ros
             XmlRpcValue parm = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             parm.Set(0, ThisNode.Name);
             parm.Set(1, mappedKey);
-            if (!await Master.ExecuteAsync("deleteParam", parm, result, payload, false))
+            if (!await Master.ExecuteAsync("deleteParam", parm, result, payload, false).ConfigureAwait(false))
                 return false;
 
             lock (gate)
@@ -488,7 +488,7 @@ namespace Uml.Robotics.Ros
             parm.Set(1, mappepKey);
             resultValue.SetArray(0);
 
-            bool ret = await Master.ExecuteAsync("getParam", parm, result, resultValue, false);
+            bool ret = await Master.ExecuteAsync("getParam", parm, result, resultValue, false).ConfigureAwait(false);
             if (ret && useCache)
             {
                 lock (gate)

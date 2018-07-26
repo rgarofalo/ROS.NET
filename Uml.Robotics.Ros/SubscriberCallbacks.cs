@@ -7,7 +7,6 @@
         public ICallbackQueue CallbackQueue { get; }
         public SubscriberStatusCallback OnConnect { get; }
         public SubscriberStatusCallback OnDisconnect { get; }
-        public long CallbackId { get; set; } = -1;
 
         public SubscriberCallbacks(
             SubscriberStatusCallback onConnect,

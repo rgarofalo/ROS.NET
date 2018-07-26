@@ -27,17 +27,17 @@ namespace Uml.Robotics.Ros
         private static ILogger logger = ApplicationLogging.CreateLogger(nameof(ROS));
 
         private static ICallbackQueue globalCallbackQueue;
-        private static object startMutex = new object();
+        private static readonly object startMutex = new object();
 
         public static TimerManager timerManager = new TimerManager();
 
         private static Task shutdownTask;
-        internal static bool initialized;
         private static bool started;
         private static bool atExitRegistered;
+        private static InitOptions initOptions;
         private static volatile bool _ok;
         internal static bool shuttingDown;
-        private static InitOptions initOptions;
+        internal static bool initialized;
 
         public static ICallbackQueue GlobalCallbackQueue =>
             globalCallbackQueue;
@@ -299,7 +299,7 @@ namespace Uml.Robotics.Ros
                     Process.GetCurrentProcess().EnableRaisingEvents = true;
                     Process.GetCurrentProcess().Exited += (o, args) =>
                     {
-                        _shutdown();
+                        Shutdown();
                         WaitForShutdown();
                     };
 #endif
@@ -329,8 +329,7 @@ namespace Uml.Robotics.Ros
                     // Load RosMessages from MessageBase assembly
                     msgRegistry.ParseAssemblyAndRegisterRosMessages(typeof(RosMessage).GetTypeInfo().Assembly);
 
-
-                    // Load RosMessages from Messages assembly
+                    // Load RosMessages from all assemblies that reference Uml.Robotics.Ros.MessageBas
                     var candidates = MessageTypeRegistry.GetCandidateAssemblies("Uml.Robotics.Ros.MessageBase");
 
                     foreach (var assembly in candidates)

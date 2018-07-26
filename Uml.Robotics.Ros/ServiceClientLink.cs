@@ -51,18 +51,18 @@ namespace Uml.Robotics.Ros
             {
                 try
                 {
-                    await HandleHeader(header);
+                    await HandleHeader(header).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     if (ROS.shuttingDown)
                     {
-                        await connection.SendHeaderError("ROS node shutting down", cancel);
+                        await connection.SendHeaderError("ROS node shutting down", cancel).ConfigureAwait(false);
                     }
                     else
                     {
                         ROS.Error()(e.Message);
-                        await connection.SendHeaderError(e.Message, cancel);
+                        await connection.SendHeaderError(e.Message, cancel).ConfigureAwait(false);
                     }
                     connection.Close(50);
 
@@ -74,7 +74,7 @@ namespace Uml.Robotics.Ros
                     cancel.ThrowIfCancellationRequested();
 
                     // read request
-                    int requestLength = await connection.ReadInt32(cancel);
+                    int requestLength = await connection.ReadInt32(cancel).ConfigureAwait(false);
                     if (requestLength < 0 || requestLength > Connection.MESSAGE_SIZE_LIMIT)
                     {
                         var errorMessage = $"Message length exceeds limit of {Connection.MESSAGE_SIZE_LIMIT}. Dropping connection.";
@@ -82,19 +82,19 @@ namespace Uml.Robotics.Ros
                         throw new ConnectionError(errorMessage);
                     }
 
-                    byte[] requestBuffer = await connection.ReadBlock(requestLength, cancel);
+                    byte[] requestBuffer = await connection.ReadBlock(requestLength, cancel).ConfigureAwait(false);
 
                     try
                     {
                         // process
-                        var (result, success) = await parent.ProcessRequest(requestBuffer, this);
-                        await ProcessResponse(result, success);
+                        var (result, success) = await parent.ProcessRequest(requestBuffer, this).ConfigureAwait(false);
+                        await ProcessResponse(result, success).ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
                         string errorMessage = "Exception thrown while processing service call: " + e.Message;
                         ROS.Error()(errorMessage);
-                        await ProcessResponse(errorMessage, false);
+                        await ProcessResponse(errorMessage, false).ConfigureAwait(false);
                     }
 
                     if (!persistent)
@@ -150,7 +150,7 @@ namespace Uml.Robotics.Ros
                 ["callerid"] = ThisNode.Name
             };
 
-            await connection.WriteHeader(m, cancel);
+            await connection.WriteHeader(m, cancel).ConfigureAwait(false);
 
             publication.AddServiceClientLink(this);
         }
@@ -174,7 +174,7 @@ namespace Uml.Robotics.Ros
                 Array.Copy(BitConverter.GetBytes(0),0, buf, 1,4);
             }
 
-            await connection.WriteBlock(buf, 0, buf.Length, cancel);
+            await connection.WriteBlock(buf, 0, buf.Length, cancel).ConfigureAwait(false);
         }
 
         public virtual async Task ProcessResponse(RosMessage msg, bool success)
@@ -194,7 +194,7 @@ namespace Uml.Robotics.Ros
                 buf[0] = (byte) (success ? 0x01 : 0x00);
                 Array.Copy(BitConverter.GetBytes(0),0, buf, 1,4);
             }
-            await connection.WriteBlock(buf, 0, buf.Length, cancel);
+            await connection.WriteBlock(buf, 0, buf.Length, cancel).ConfigureAwait(false);
         }
     }
 }

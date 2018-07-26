@@ -33,7 +33,7 @@ namespace Uml.Robotics.Ros
         {
             if (persistent)
             {
-                serverLink = await CreateLink();
+                serverLink = await CreateLink().ConfigureAwait(false);
             }
         }
 
@@ -100,7 +100,7 @@ namespace Uml.Robotics.Ros
 
             if (serverLink == null)
             {
-                serverLink = await CreateLink();
+                serverLink = await CreateLink().ConfigureAwait(false);
             }
 
             return true;

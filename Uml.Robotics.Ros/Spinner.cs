@@ -35,21 +35,15 @@ namespace Uml.Robotics.Ros
 
         public void Spin(CancellationToken token)
         {
-            TimeSpan wallDuration = new TimeSpan(0, 0, 0, 0, ROS.WallDuration);
             Logger.LogInformation("Start spinning");
             while (ROS.OK)
             {
-                DateTime begin = DateTime.UtcNow;
                 callbackQueue.CallAvailable(ROS.WallDuration);
 
                 if (token.IsCancellationRequested)
                     break;
 
-                DateTime end = DateTime.UtcNow;
-                TimeSpan spinDuration = end - begin;
-                var remainingTime = wallDuration - spinDuration;
-                if (remainingTime > TimeSpan.Zero)
-                    Thread.Sleep(remainingTime);
+                Thread.Yield();
             }
         }
 
@@ -59,20 +53,18 @@ namespace Uml.Robotics.Ros
         }
     }
 
-
     public class AsyncSpinner : IDisposable
     {
-        private ICallbackQueue callbackQueue;
+        private readonly ICallbackQueue callbackQueue;
         private Task spinTask;
-        private CancellationTokenSource tokenSource = new CancellationTokenSource();
-        private CancellationToken token;
+        private CancellationTokenSource cts = new CancellationTokenSource();
 
         /// <summary>
         /// Creates a spinner for the global ROS callback queue
         /// </summary>
         public AsyncSpinner()
+            : this(ROS.GlobalCallbackQueue)
         {
-            this.callbackQueue = ROS.GlobalCallbackQueue;
         }
 
         /// <summary>
@@ -87,16 +79,16 @@ namespace Uml.Robotics.Ros
         public void Dispose()
         {
             Stop(true);
-            tokenSource.Dispose();
+            cts.Dispose();
         }
 
         public void Start()
         {
             spinTask = Task.Factory.StartNew(() =>
             {
-                token = tokenSource.Token;
+                var cancel = cts.Token;
                 var spinner = new SingleThreadSpinner(callbackQueue);
-                spinner.Spin(token);
+                spinner.Spin(cancel);
             }, TaskCreationOptions.LongRunning);
         }
 
@@ -104,7 +96,7 @@ namespace Uml.Robotics.Ros
         {
             if (spinTask != null)
             {
-                tokenSource.Cancel();
+                cts.Cancel();
                 if (wait)
                     spinTask.Wait();
                 spinTask = null;

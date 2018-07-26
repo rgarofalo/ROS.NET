@@ -77,7 +77,7 @@ namespace Xamla.Robotics.Ros.Async
         public static async Task TimeoutAfter(this Task task, TimeSpan timeout)
         {
             if (task.IsCompleted)
-                await task;
+                await task.ConfigureAwait(false);
 
             using (var timeoutCancellationTokenSource = new CancellationTokenSource())
             {
@@ -85,7 +85,7 @@ namespace Xamla.Robotics.Ros.Async
                 if (completedTask == task)
                 {
                     timeoutCancellationTokenSource.Cancel();
-                    await task;
+                    await task.ConfigureAwait(false);
                 }
                 else
                 {
@@ -97,7 +97,7 @@ namespace Xamla.Robotics.Ros.Async
         public static async Task<TResult> TimeoutAfter<TResult>(this Task<TResult> task, TimeSpan timeout)
         {
             if (task.IsCompleted)
-                await task;
+                await task.ConfigureAwait(false);
 
             using (var timeoutCancellationTokenSource = new CancellationTokenSource())
             {
@@ -105,7 +105,7 @@ namespace Xamla.Robotics.Ros.Async
                 if (completedTask == task)
                 {
                     timeoutCancellationTokenSource.Cancel();
-                    return await task;
+                    return await task.ConfigureAwait(false);
                 }
                 else
                 {
@@ -450,6 +450,15 @@ namespace Xamla.Robotics.Ros.Async
         {
             exception = exception.Flatten();
             ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+        }
+
+        public static bool HasCompletedSuccessfully(this Task t)
+        {
+#if !NETCORE
+            return t.Status == TaskStatus.RanToCompletion;
+#else
+            return t.IsCompletedSuccessfully;
+#endif
         }
     }
 }

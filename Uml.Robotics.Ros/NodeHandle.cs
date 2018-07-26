@@ -133,10 +133,10 @@ namespace Uml.Robotics.Ros
             }
 
             foreach (ISubscriber sub in collection.Subscribers)
-                await sub.Unsubscribe();
+                await sub.Unsubscribe().ConfigureAwait(false);
 
             foreach (IPublisher pub in collection.Publishers)
-                await pub.Unadvertise();
+                await pub.Unadvertise().ConfigureAwait(false);
 
             foreach (ServiceServer srv in collection.ServiceServers)
                 srv.Shutdown();
@@ -169,7 +169,7 @@ namespace Uml.Robotics.Ros
         /// <returns>A publisher with the specified topic type, name and options</returns>
         public async Task<Publisher<M>> AdvertiseAsync<M>(string topic, int queueSize) where M : RosMessage, new()
         {
-            return await AdvertiseAsync<M>(topic, queueSize, false);
+            return await AdvertiseAsync<M>(topic, queueSize, false).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -182,7 +182,7 @@ namespace Uml.Robotics.Ros
         /// <returns>A publisher with the specified topic type, name and options</returns>
         public async Task<Publisher<M>> AdvertiseAsync<M>(string topic, int queueSize, bool latch) where M : RosMessage, new()
         {
-            return await AdvertiseAsync(new AdvertiseOptions<M>(topic, queueSize) {Latch = latch});
+            return await AdvertiseAsync(new AdvertiseOptions<M>(topic, queueSize) {Latch = latch}).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -198,7 +198,7 @@ namespace Uml.Robotics.Ros
             SubscriberStatusCallback disconnectCallback)
             where M : RosMessage, new()
         {
-            return await AdvertiseAsync<M>(topic, queueSize, connectCallback, disconnectCallback, false);
+            return await AdvertiseAsync<M>(topic, queueSize, connectCallback, disconnectCallback, false).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -215,7 +215,7 @@ namespace Uml.Robotics.Ros
             SubscriberStatusCallback disconnectCallback, bool latch)
             where M : RosMessage, new()
         {
-            return await AdvertiseAsync(new AdvertiseOptions<M>(topic, queueSize, connectCallback, disconnectCallback) { Latch = latch });
+            return await AdvertiseAsync(new AdvertiseOptions<M>(topic, queueSize, connectCallback, disconnectCallback) { Latch = latch }).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -233,7 +233,7 @@ namespace Uml.Robotics.Ros
                 ops.callbackQueue = CallbackQueue;
             }
             var callbacks = new SubscriberCallbacks(ops.connectCB, ops.disconnectCB, ops.callbackQueue);
-            if (await TopicManager.Instance.Advertise(ops, callbacks))
+            if (await TopicManager.Instance.Advertise(ops, callbacks).ConfigureAwait(false))
             {
                 var pub = new Publisher<M>(ops.topic, ops.md5Sum, ops.dataType, this, callbacks);
                 lock (gate)
@@ -273,7 +273,7 @@ namespace Uml.Robotics.Ros
         public async Task<Subscriber> SubscribeAsync<M>(string topic, int queueSize, CallbackDelegate<M> cb, bool allowConcurrentCallbacks = false)
             where M : RosMessage, new()
         {
-            return await SubscribeAsync<M>(topic, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks);
+            return await SubscribeAsync<M>(topic, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -298,13 +298,13 @@ namespace Uml.Robotics.Ros
                 CallbackQueue = callbackQueue,
                 AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.CallbackQueue.AddCallback(cb, cb.Uid);
-            return await SubscribeAsync(ops);
+            ops.CallbackQueue.AddCallback(cb, ops.CallbackHelper);
+            return await SubscribeAsync(ops).ConfigureAwait(false);
         }
 
         public async Task<Subscriber> SubscribeAsync(string topic, string messageType, int queueSize, CallbackDelegate<RosMessage> cb, bool allowConcurrentCallbacks = false)
         {
-            return await SubscribeAsync(topic, messageType, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks);
+            return await SubscribeAsync(topic, messageType, queueSize, Ros.Callback.Create(cb), allowConcurrentCallbacks).ConfigureAwait(false);
         }
 
         public async Task<Subscriber> SubscribeAsync(string topic, string messageType, int queueSize, CallbackInterface cb, bool allowConcurrentCallbacks = false)
@@ -320,8 +320,8 @@ namespace Uml.Robotics.Ros
                 CallbackQueue = callbackQueue,
                 AllowConcurrentCallbacks = allowConcurrentCallbacks
             };
-            ops.CallbackQueue.AddCallback(cb, cb.Uid);
-            return await SubscribeAsync(ops);
+            ops.CallbackQueue.AddCallback(cb, ops.CallbackHelper);
+            return await SubscribeAsync(ops).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -337,7 +337,7 @@ namespace Uml.Robotics.Ros
                 ops.CallbackQueue = CallbackQueue;
             }
 
-            await TopicManager.Instance.Subscribe(ops);
+            await TopicManager.Instance.Subscribe(ops).ConfigureAwait(false);
 
             var sub = new Subscriber(ops.Topic, this, ops.CallbackHelper);
             lock (gate)

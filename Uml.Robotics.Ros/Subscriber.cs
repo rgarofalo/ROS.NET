@@ -44,23 +44,14 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     Returns the number of publishers on the subscribers topic
         /// </summary>
-        public int NumPublishers
-        {
-            get
-            {
-                if (IsValid)
-                    return subscription.NumPublishers;
-                return 0;
-            }
-        }
+        public int NumPublishers =>
+            IsValid ? subscription.NumPublishers : 0;
 
         /// <summary>
         ///     Shutdown a subscriber gracefully.
         /// </summary>
-        public override async Task Shutdown()
-        {
-            await Unsubscribe();
-        }
+        public override async Task Shutdown() =>
+            await Unsubscribe().ConfigureAwait(false);
     }
 
     public abstract class ISubscriber : IDisposable
@@ -80,17 +71,15 @@ namespace Uml.Robotics.Ros
         public string topic = "";
         public bool unsubscribed;
 
-        public bool IsValid
-        {
-            get { return !unsubscribed; }
-        }
+        public bool IsValid =>
+            !unsubscribed;
 
         public virtual async Task Unsubscribe()
         {
             if (!unsubscribed)
             {
                 unsubscribed = true;
-                await TopicManager.Instance.Unsubscribe(topic, helper);
+                await TopicManager.Instance.Unsubscribe(topic, helper).ConfigureAwait(false);
             }
         }
 

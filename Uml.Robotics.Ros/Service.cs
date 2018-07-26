@@ -17,7 +17,7 @@ namespace Uml.Robotics.Ros
 
             try
             {
-                (host, port) = await ServiceManager.Instance.LookupServiceAsync(mappedName);
+                (host, port) = await ServiceManager.Instance.LookupServiceAsync(mappedName).ConfigureAwait(false);
             }
             catch
             {
@@ -32,7 +32,7 @@ namespace Uml.Robotics.Ros
             {
                 try
                 {
-                    await tcpClient.ConnectAsync(host, port);
+                    await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -57,8 +57,8 @@ namespace Uml.Robotics.Ros
                 byte[] sizebuf = BitConverter.GetBytes(size);
 
                 var stream = tcpClient.GetStream();
-                await stream.WriteAsync(sizebuf, 0, sizebuf.Length);
-                await stream.WriteAsync(headerbuf, 0, size);
+                await stream.WriteAsync(sizebuf, 0, sizebuf.Length).ConfigureAwait(false);
+                await stream.WriteAsync(headerbuf, 0, size).ConfigureAwait(false);
             }
 
             return true;
@@ -71,7 +71,7 @@ namespace Uml.Robotics.Ros
 
             while (ROS.OK)
             {
-                if (await Exists(serviceName, !printed))
+                if (await Exists(serviceName, !printed).ConfigureAwait(false))
                 {
                     if (printed && ROS.OK)
                     {
@@ -89,7 +89,7 @@ namespace Uml.Robotics.Ros
                         return false;
                 }
 
-                await Task.Delay(ROS.WallDuration, cancel);
+                await Task.Delay(ROS.WallDuration, cancel).ConfigureAwait(false);
             }
 
             return false;

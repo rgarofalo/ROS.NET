@@ -137,6 +137,7 @@ namespace Uml.Robotics.Ros
             {
                 if (Dropped)
                     return;
+
                 if (subscriberLinks.Contains(link))
                 {
                     lnk = link;
@@ -147,8 +148,11 @@ namespace Uml.Robotics.Ros
                     }
                 }
             }
+
             if (lnk != null)
+            {
                 HandlePeerDisconnect(lnk);
+            }
         }
 
         internal void Publish(MessageAndSerializerFunc msg)
@@ -190,7 +194,7 @@ namespace Uml.Robotics.Ros
 
         private async Task RunPublishLoopAsync()
         {
-            while (await publishQueue.MoveNext(cancel))
+            while (await publishQueue.MoveNext(cancel).ConfigureAwait(false))
             {
                 cancel.ThrowIfCancellationRequested();
 
@@ -266,8 +270,7 @@ namespace Uml.Robotics.Ros
                     foreach (SubscriberLink i in subscriberLinks)
                     {
                         CallbackInterface cb = new PeerConnDisconnCallback(callbacks.OnConnect, i);
-                        callbacks.CallbackId = cb.Uid;
-                        callbacks.CallbackQueue.AddCallback(cb, cb.Uid);
+                        callbacks.CallbackQueue.AddCallback(cb, callbacks);
                     }
                 }
             }
@@ -277,8 +280,7 @@ namespace Uml.Robotics.Ros
         {
             lock (gate)
             {
-                if (callbacks.CallbackId >= 0)
-                    callbacks.CallbackQueue.RemoveById(callbacks.CallbackId);
+                callbacks.CallbackQueue.RemoveByOwner(callbacks);
                 this.callbacks.Remove(callbacks);
             }
         }
@@ -357,8 +359,7 @@ namespace Uml.Robotics.Ros
                 if (cbs.OnConnect != null && cbs.CallbackQueue != null)
                 {
                     var cb = new PeerConnDisconnCallback(cbs.OnConnect, sub_link);
-                    cbs.CallbackId = cb.Uid;
-                    cbs.CallbackQueue.AddCallback(cb, cb.Uid);
+                    cbs.CallbackQueue.AddCallback(cb, cbs);
                 }
             }
         }
@@ -371,8 +372,7 @@ namespace Uml.Robotics.Ros
                 if (cbs.OnDisconnect != null && cbs.CallbackQueue != null)
                 {
                     var cb = new PeerConnDisconnCallback(cbs.OnDisconnect, sub_link);
-                    cbs.CallbackId = cb.Uid;
-                    cbs.CallbackQueue.AddCallback(cb, cb.Uid);
+                    cbs.CallbackQueue.AddCallback(cb, cbs);
                 }
             }
         }

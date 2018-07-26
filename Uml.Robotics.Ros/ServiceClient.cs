@@ -21,7 +21,7 @@ namespace Uml.Robotics.Ros
 
         protected override async Task<IServiceServerLink> CreateLink()
         {
-            return await ServiceManager.Instance.CreateServiceServerLinkAsync<MReq, MRes>(serviceName, persistent, md5sum, md5sum, headerValues);
+            return await ServiceManager.Instance.CreateServiceServerLinkAsync<MReq, MRes>(serviceName, persistent, md5sum, md5sum, headerValues).ConfigureAwait(false);
         }
 
         public (bool, MRes) Call(MReq request) =>
@@ -30,7 +30,7 @@ namespace Uml.Robotics.Ros
         public async Task<(bool, MRes)> CallAsync(MReq request)
         {
             string md5 = request.MD5Sum();
-            return await Call(request, md5);
+            return await Call(request, md5).ConfigureAwait(false);
         }
 
         public async Task<(bool, MRes)> Call(MReq request, string serviceMd5Sum)
@@ -39,12 +39,12 @@ namespace Uml.Robotics.Ros
             {
                 EnterCall();
 
-                if (!await PreCall(serviceMd5Sum) || serverLink == null || !serverLink.IsValid)
+                if (!await PreCall(serviceMd5Sum).ConfigureAwait(false) || serverLink == null || !serverLink.IsValid)
                 {
                     return (false, null);
                 }
 
-                (bool result, RosMessage response) = await serverLink.Call(request);
+                (bool result, RosMessage response) = await serverLink.Call(request).ConfigureAwait(false);
 
                 var responseMessage = (MRes)response;
                 return (result, responseMessage);
@@ -80,7 +80,7 @@ namespace Uml.Robotics.Ros
         public async Task<bool> CallAsync(MSrv srv)
         {
             string md5 = srv.RequestMessage.MD5Sum();
-            return await CallAsync(srv, md5);
+            return await CallAsync(srv, md5).ConfigureAwait(false);
         }
 
         public async Task<bool> CallAsync(MSrv srv, string serviceMd5Sum)
@@ -89,12 +89,12 @@ namespace Uml.Robotics.Ros
             {
                 EnterCall();
 
-                if (!await PreCall(serviceMd5Sum) || serverLink == null || !serverLink.IsValid)
+                if (!await PreCall(serviceMd5Sum).ConfigureAwait(false) || serverLink == null || !serverLink.IsValid)
                 {
                     return false;
                 }
 
-                bool result = await serverLink.Call(srv);
+                bool result = await serverLink.Call(srv).ConfigureAwait(false);
                 return result;
             }
             finally

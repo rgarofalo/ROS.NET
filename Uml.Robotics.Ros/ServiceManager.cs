@@ -45,7 +45,7 @@ namespace Uml.Robotics.Ros
             args.Set(0, ThisNode.Name);
             args.Set(1, name);
 
-            if (!await Master.ExecuteAsync("lookupService", args, result, payload, false))
+            if (!await Master.ExecuteAsync("lookupService", args, result, payload, false).ConfigureAwait(false))
             {
                 throw new Exception($"The Service '{name}' is not available at ROS master.");
             }
@@ -73,10 +73,10 @@ namespace Uml.Robotics.Ros
             Action<ServiceServerLink> initialize
         )
         {
-            (string host, int port) = await LookupServiceAsync(service);
+            (string host, int port) = await LookupServiceAsync(service).ConfigureAwait(false);
 
             var client = new TcpClient();
-            await client.ConnectAsync(host, port);
+            await client.ConnectAsync(host, port).ConfigureAwait(false);
             client.NoDelay = true;
 
             var connection = new Connection(client);
@@ -100,7 +100,7 @@ namespace Uml.Robotics.Ros
         )
             where S : RosService, new()
         {
-            return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<S>());
+            return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<S>()).ConfigureAwait(false);
         }
 
         internal async Task<IServiceServerLink> CreateServiceServerLinkAsync<Req, Res>(
@@ -113,7 +113,7 @@ namespace Uml.Robotics.Ros
             where Req : RosMessage, new()
             where Res : RosMessage, new()
         {
-            return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<Req, Res>());
+            return await CreateServiceServerLinkAsync(service, persistent, requestMd5Sum, responseMd5Sum, headerValues, link => link.Initialize<Req, Res>()).ConfigureAwait(false);
         }
 
         internal void RemoveServiceServerLinkAsync(IServiceServerLink link)

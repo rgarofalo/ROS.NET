@@ -33,6 +33,11 @@ namespace FauxMessages
             return type;
         }
 
+        public static bool IsPrimitiveType(SingleType st)
+        {
+            return st.Package == null && KnownTypes.ContainsKey(st.rostype) && st.rostype != "duration" && st.rostype != "time";
+        }
+
         public static Dictionary<string, string> KnownTypes = new Dictionary<string, string>
         {
             { "float64", "double" },

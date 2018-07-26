@@ -28,8 +28,7 @@ namespace Uml.Robotics.Ros
         public override Task<(RosMessage, bool)> ProcessRequest(byte[] buf, IServiceClientLink link)
         {
             var cb = new ServiceCallback(this, helper, buf, link);
-            this.callbackId = cb.Uid;
-            callback.AddCallback(cb, cb.Uid);
+            callback.AddCallback(cb, gate);
             return cb.ResultTask;
         }
 
@@ -121,7 +120,6 @@ namespace Uml.Robotics.Ros
         protected ICallbackQueue callback;
         protected List<IServiceClientLink> clientLinks = new List<IServiceClientLink>();
         protected readonly object gate = new object();
-        protected long callbackId = -1;
 
         internal string dataType;
         internal bool isDropped;
@@ -137,10 +135,7 @@ namespace Uml.Robotics.Ros
                 isDropped = true;
             }
             DropAllConnections();
-            if (callbackId >= 0)
-            {
-                callback.RemoveById(callbackId);
-            }
+            callback.RemoveByOwner(gate);
         }
 
         private void DropAllConnections()

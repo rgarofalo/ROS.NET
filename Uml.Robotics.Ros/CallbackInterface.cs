@@ -9,9 +9,9 @@ namespace Uml.Robotics.Ros
         : CallbackInterface
     {
         private readonly ILogger logger = ApplicationLogging.CreateLogger<Callback>();
-        private volatile bool callback_state;
+        private volatile bool callbackState;
 
-        private readonly bool allow_concurrent_callbacks;
+        private readonly bool allowConcurrentCallbacks;
         private readonly Queue<Item> queue = new Queue<Item>();
         private int queueSize;
 
@@ -23,7 +23,7 @@ namespace Uml.Robotics.Ros
         public Callback(CallbackDelegate f, string topic, int queueSize, bool allowConcurrentCallbacks)
             : this(f)
         {
-            this.allow_concurrent_callbacks = allowConcurrentCallbacks;
+            this.allowConcurrentCallbacks = allowConcurrentCallbacks;
             this.queueSize = queueSize;
         }
 
@@ -88,21 +88,33 @@ namespace Uml.Robotics.Ros
 
         internal override CallResult Call()
         {
-            if (!allow_concurrent_callbacks)
-            {
-                if (callback_state)
-                    return CallResult.TryAgain;
-                callback_state = true;
-            }
             Item i = null;
-            lock (queue)
+            try
             {
-                if (queue.Count == 0)
-                    return CallResult.Invalid;
-                i = queue.Dequeue();
+                lock (queue)
+                {
+                    if (!allowConcurrentCallbacks)
+                    {
+                        if (callbackState)
+                            return CallResult.TryAgain;
+
+                        callbackState = true;
+                    }
+
+                    if (queue.Count == 0)
+                        return CallResult.Invalid;
+                    i = queue.Dequeue();
+                }
+
+                i.helper.Call(i.message);
             }
-            i.helper.Call(i.message);
-            callback_state = false;
+            finally
+            {
+                if (!allowConcurrentCallbacks)
+                {
+                    callbackState = false;
+                }
+            }
             return CallResult.Success;
         }
     }
@@ -110,11 +122,6 @@ namespace Uml.Robotics.Ros
 
     public abstract class CallbackInterface
     {
-        private static long nextId = 0;
-        private static long NewUniqueId() =>
-            Interlocked.Increment(ref nextId);
-
-        public long Uid { get; }
         public delegate void CallbackDelegate(RosMessage msg);
         public event CallbackDelegate Event;
 
@@ -122,7 +129,6 @@ namespace Uml.Robotics.Ros
 
         public CallbackInterface()
         {
-            this.Uid = NewUniqueId();
         }
 
         public CallbackInterface(CallbackDelegate f)

@@ -7,7 +7,7 @@ namespace Uml.Robotics.Ros
     {
         private readonly object gate = new object();
         private bool disposed;
-        //private LocalSubscriberLink publisher;
+        private LocalSubscriberLink subscriberLink;
 
         public LocalPublisherLink(Subscription parent, string xmlrpc_uri)
             : base(parent, xmlrpc_uri)
@@ -16,6 +16,9 @@ namespace Uml.Robotics.Ros
 
         public override string TransportType =>
             "INTRAPROCESS";
+
+        public override bool IsConnected =>
+            !disposed;
 
         public void SetPublisher(LocalSubscriberLink link)
         {
@@ -30,6 +33,7 @@ namespace Uml.Robotics.Ros
                     ["tcp_nodelay"] = "1"
                 };
                 SetHeader(new Header(headerFields));
+                subscriberLink = link;
             }
         }
 
@@ -42,7 +46,6 @@ namespace Uml.Robotics.Ros
                 disposed = true;
             }
 
-            //publisher?.Dispose();
             Parent.RemovePublisherLink(this);
         }
 

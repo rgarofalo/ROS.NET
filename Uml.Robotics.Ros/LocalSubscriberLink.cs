@@ -23,8 +23,6 @@ namespace Uml.Robotics.Ros
                 dropped = true;
             }
 
-            subscriber?.Dispose();
-
             lock (parent)
             {
                 parent.RemoveSubscriberLink(this);

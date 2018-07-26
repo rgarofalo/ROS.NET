@@ -21,6 +21,9 @@ namespace Uml.Robotics.Ros.ActionLib
         where TResult : InnerActionMessage, new()
         where TFeedback : InnerActionMessage, new()
     {
+        const int MAX_STATUS_MISSING_UNACKNOWLEDGED = 3;        // number of status messages to wait for server to reflect a published goal before republishing it
+        const int MAX_STATUS_MISSING_WAIT_RESULT = 5;           // if goal disappeared from status list and is waiting for result: number of messages to wait before considering goal lost
+
         private static int nextGoalId = 0; // Shared among all clients
         private static readonly object lockId = new object();
 
@@ -89,8 +92,7 @@ namespace Uml.Robotics.Ros.ActionLib
         /// </summary>
         public void CancelGoalsAtAndBeforeTime(Time time)
         {
-            var cancelMessage = new GoalID();
-            cancelMessage.stamp = time;
+            var cancelMessage = new GoalID { stamp = time };
             CancelPublisher.Publish(cancelMessage);
         }
 
@@ -156,7 +158,7 @@ namespace Uml.Robotics.Ros.ActionLib
 
             // Publish goal message
             GoalPublisher.Publish(goalAction);
-            ROS.Debug()("Goal published: {0}", goalAction.GoalId.id);
+            ROS.Debug()("Goal published: {0}", goalHandle.Id);
 
             return goalHandle;
         }
@@ -254,7 +256,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 if (timeout != null && elapsed > timeout)
                     break;
 
-                await Task.Delay(1);
+                await Task.Delay(1).ConfigureAwait(false);
             }
 
             lock (gate)
@@ -423,11 +425,24 @@ namespace Uml.Robotics.Ros.ActionLib
 
         private void OnGoalConnectCallback(SingleSubscriberPublisher publisher)
         {
+            List<ClientGoalHandle<TGoal, TResult, TFeedback>> unacknowledgedGoalHandles;
             lock (gate)
             {
                 bool keyExists = goalSubscriberCount.TryGetValue(publisher.SubscriberName, out int subscriberCount);
                 goalSubscriberCount[publisher.SubscriberName] = (keyExists ? subscriberCount : 0) + 1;
                 ROS.Debug()($"goalConnectCallback: Adding {publisher.SubscriberName} to goalSubscribers");
+
+                // check if we have unacknowledged goals (the action server might have missed the goal message when it was disconnected)
+                unacknowledgedGoalHandles = goalHandles.Values
+                    .Where(x => x.State == CommunicationState.WAITING_FOR_GOAL_ACK)
+                    .ToList();
+            }
+
+            foreach (var gh in unacknowledgedGoalHandles)
+            {
+                ROS.Debug()("Republishing unacknowledged goal: {0}", gh.Id);
+                GoalPublisher.Publish(gh.Goal);
+                gh.statusMissing = 0;
             }
         }
 
@@ -563,15 +578,12 @@ namespace Uml.Robotics.Ros.ActionLib
 
             // Loop over all goal handles and update their state, mark goal handles that are done for deletion
             var completedGoals = new List<string>();
-#if NETCORE
-            foreach (var (key, value) in goalHandlesReferenceCopy)
-            {
-#else
-            foreach(KeyValuePair<string, ClientGoalHandle<TGoal, TResult, TFeedback>> kv in goalHandlesReferenceCopy)
+
+            foreach (KeyValuePair<string, ClientGoalHandle<TGoal, TResult, TFeedback>> kv in goalHandlesReferenceCopy)
             {
                 var value = kv.Value;
-                var key= kv.Key;
-#endif
+                var key = kv.Key;
+
                 if (value.LatestResultAction == null || ROS.ToDateTime(value.LatestResultAction.Header.stamp) < ROS.ToDateTime(timestamp))
                 {
                     var goalStatus = FindGoalInStatusList(statusArray, key);
@@ -586,7 +598,7 @@ namespace Uml.Robotics.Ros.ActionLib
             // Remove goal handles that are done from the tracking list
             foreach (var goalHandleId in completedGoals)
             {
-                ROS.Debug()($"Removing completed goal handle id {0} from tracked goal handles", goalHandleId);
+                ROS.Debug()("Removing completed goal handle (goal_id: {0}) from tracked goal handles", goalHandleId);
                 lock (gate)
                 {
                     goalHandles.Remove(goalHandleId);
@@ -613,7 +625,7 @@ namespace Uml.Robotics.Ros.ActionLib
             CancellationToken cancel = default(CancellationToken)
         )
         {
-            if (!await this.WaitForActionServerToStartAsync(this.ActionServerWaitTimeout, cancel))
+            if (!await this.WaitForActionServerToStartAsync(this.ActionServerWaitTimeout, cancel).ConfigureAwait(false))
             {
                 logger.LogInformation($"Action server {this.Name} is not available.");
                 throw new TimeoutException($"Action server {this.Name} is not available.");
@@ -622,30 +634,53 @@ namespace Uml.Robotics.Ros.ActionLib
             var gh = this.SendGoal(goal, onTransistionCallback, onFeedbackCallback);
             using (cancel.Register(gh.Cancel))
             {
-                return await gh.GoalTask;
+                return await gh.GoalTask.ConfigureAwait(false);
             }
         }
 
         private void UpdateStatus(ClientGoalHandle<TGoal, TResult, TFeedback> goalHandle, GoalStatus goalStatus)
         {
-            // Check if ping action is correctly reflected by the status message
+            // process the status message
             if (goalStatus != null)
             {
                 goalHandle.LatestGoalStatus = goalStatus;
+                goalHandle.statusMissing = 0;
             }
             else
             {
-                if ((goalHandle.State != CommunicationState.WAITING_FOR_GOAL_ACK) &&
-                    (goalHandle.State != CommunicationState.WAITING_FOR_RESULT) &&
-                    (goalHandle.State != CommunicationState.DONE))
+                goalHandle.statusMissing += 1;
+                if (goalHandle.State != CommunicationState.WAITING_FOR_GOAL_ACK &&
+                    goalHandle.State != CommunicationState.WAITING_FOR_RESULT &&
+                    goalHandle.State != CommunicationState.DONE)
                 {
                     ProcessLost(goalHandle);
                     return;
                 }
                 else
                 {
-                    logger.LogDebug($"goal status is null for {goalHandle.Id}, most propably because it was just send and there" +
+                    if (goalHandle.State == CommunicationState.WAITING_FOR_GOAL_ACK)
+                    {
+                        logger.LogDebug($"Goal status is null for {goalHandle.Id}, most propably because it was just send and there" +
                         $"and the server has not yet sent an update");
+
+                        // if goal was not seen for thre status updates republish the goal
+                        if (goalHandle.statusMissing > MAX_STATUS_MISSING_UNACKNOWLEDGED)
+                        {
+                            this.GoalPublisher.Publish(goalHandle.Goal);
+                            goalHandle.statusMissing = 0;
+                        }
+                    }
+                    else if (goalHandle.State == CommunicationState.WAITING_FOR_RESULT)
+                    {
+                        logger.LogDebug($"Goal status is null for {goalHandle.Id}, while waiting for result. Did we miss the result?");
+
+                        // the server forgot about the goal handle, but we have not received a result message
+                        if (goalHandle.statusMissing > MAX_STATUS_MISSING_WAIT_RESULT)
+                        {
+                            this.ProcessLost(goalHandle);
+                        }
+                    }
+
                     return;
                 }
             }
@@ -1008,31 +1043,15 @@ namespace Uml.Robotics.Ros.ActionLib
         }
     }
 
-
     public enum CommunicationState
     {
-        [Display(Description = "WAITING_FOR_GOAL_ACK")]
         WAITING_FOR_GOAL_ACK,
-
-        [Display(Description = "PENDING")]
         PENDING,
-
-        [Display(Description = "ACTIVE")]
         ACTIVE,
-
-        [Display(Description = "WAITING_FOR_RESULT")]
         WAITING_FOR_RESULT,
-
-        [Display(Description = "WAITING_FOR_CANCEL_ACK")]
         WAITING_FOR_CANCEL_ACK,
-
-        [Display(Description = "RECALLING")]
         RECALLING,
-
-        [Display(Description = "PREEMPTING")]
         PREEMPTING,
-
-        [Display(Description = "DONE")]
         DONE
     }
 }

@@ -91,9 +91,9 @@ namespace Uml.Robotics.Ros
 
         private async Task PublishLoopAsync()
         {
-            using (var publisher = await ROS.GlobalNodeHandle.AdvertiseAsync<Log>("/rosout", 0))
+            using (var publisher = await ROS.GlobalNodeHandle.AdvertiseAsync<Log>("/rosout", 0).ConfigureAwait(false))
             {
-                while (await queue.MoveNext(default(CancellationToken)))
+                while (await queue.MoveNext(default(CancellationToken)).ConfigureAwait(false))
                 {
                     Log entry = queue.Current;
                     publisher.Publish(entry);

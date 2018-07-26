@@ -91,7 +91,7 @@ namespace Uml.Robotics.Ros
                 {
                     try
                     {
-                        failedOnceToUnadvertise = !await UnregisterPublisher(p.Name);
+                        failedOnceToUnadvertise = !await UnregisterPublisher(p.Name).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -108,7 +108,7 @@ namespace Uml.Robotics.Ros
                 {
                     try
                     {
-                        failedOnceToUnsubscribe = !await UnregisterSubscriber(s.Name);
+                        failedOnceToUnsubscribe = !await UnregisterSubscriber(s.Name).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -254,7 +254,7 @@ namespace Uml.Robotics.Ros
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
 
-            if (!await Master.ExecuteAsync("registerPublisher", args, result, payload, true))
+            if (!await Master.ExecuteAsync("registerPublisher", args, result, payload, true).ConfigureAwait(false))
             {
                 this.logger.LogError($"RPC \"registerPublisher\" for topic '{ops.topic}' failed.");
                 return false;
@@ -284,7 +284,7 @@ namespace Uml.Robotics.Ros
             string dataType = ops.DataType;
             var s = new Subscription(ops.Topic, md5sum, dataType);
             s.AddCallback(ops.CallbackHelper, ops.Md5Sum, ops.CallbackQueue, ops.QueueSize, ops.AllowConcurrentCallbacks, ops.Topic);
-            if (!await RegisterSubscriber(s, ops.DataType))
+            if (!await RegisterSubscriber(s, ops.DataType).ConfigureAwait(false))
             {
                 string error = $"Couldn't register subscriber on topic [{ops.Topic}]";
                 s.Dispose();
@@ -327,7 +327,7 @@ namespace Uml.Robotics.Ros
                     subscriptions.Remove(sub);
                 }
 
-                if (!await UnregisterSubscriber(topic))
+                if (!await UnregisterSubscriber(topic).ConfigureAwait(false))
                 {
                     this.logger.LogWarning("Couldn't unregister subscriber for topic [" + topic + "]");
                 }
@@ -514,7 +514,7 @@ namespace Uml.Robotics.Ros
             var result = new XmlRpcValue();
             var payload = new XmlRpcValue();
 
-            if (!await Master.ExecuteAsync("registerSubscriber", args, result, payload, true))
+            if (!await Master.ExecuteAsync("registerSubscriber", args, result, payload, true).ConfigureAwait(false))
             {
                 logger.LogError($"RPC \"registerSubscriber\" for topic {sub.Name} failed.");
                 return false;
@@ -533,7 +533,7 @@ namespace Uml.Robotics.Ros
                 localPublication = advertisedTopics.FirstOrDefault(p => p.Name == sub.Name && !p.Dropped && Md5SumsMatch(p.Md5Sum, sub.Md5Sum));
             }
 
-            await sub.PubUpdate(pubUris);
+            await sub.PubUpdate(pubUris).ConfigureAwait(false);
 
             if (localPublication != null)    // self-subscribed
             {
@@ -550,7 +550,7 @@ namespace Uml.Robotics.Ros
                 var args = new XmlRpcValue(ThisNode.Name, topic, XmlRpcManager.Instance.Uri);
                 var result = new XmlRpcValue();
                 var payload = new XmlRpcValue();
-                return await Master.ExecuteAsync("unregisterSubscriber", args, result, payload, false) && result.IsEmpty;
+                return await Master.ExecuteAsync("unregisterSubscriber", args, result, payload, false).ConfigureAwait(false) && result.IsEmpty;
             }
             catch
             {
@@ -566,7 +566,7 @@ namespace Uml.Robotics.Ros
                 var args = new XmlRpcValue(ThisNode.Name, topic, XmlRpcManager.Instance.Uri);
                 var result = new XmlRpcValue();
                 var payload = new XmlRpcValue();
-                return await Master.ExecuteAsync("unregisterPublisher", args, result, payload, false) && result.IsEmpty;
+                return await Master.ExecuteAsync("unregisterPublisher", args, result, payload, false).ConfigureAwait(false) && result.IsEmpty;
             }
             catch
             {
@@ -684,7 +684,7 @@ namespace Uml.Robotics.Ros
 
                 if (sub != null)
                 {
-                    return await sub.PubUpdate(pubs);
+                    return await sub.PubUpdate(pubs).ConfigureAwait(false);
                 }
 
                 this.logger.LogInformation($"Request for updating publishers of topic '{topic}', which has no subscribers.");
@@ -701,13 +701,9 @@ namespace Uml.Robotics.Ros
 
             var pubUpdateTask = PubUpdate(topic, publicationUris);
             pubUpdateTask.WhenCompleted().WhenCompleted().Wait();
-#if NETCORE
 
-            if (pubUpdateTask.IsCompletedSuccessfully && pubUpdateTask.Result)
-#else
-            if (pubUpdateTask.IsCompleted && pubUpdateTask.Result)
-
-#endif
+            if (pubUpdateTask.HasCompletedSuccessfully() && pubUpdateTask.Result)
+            {
                 XmlRpcManager.ResponseInt(1, "", 0)(result);
             else
             {
@@ -792,7 +788,7 @@ namespace Uml.Robotics.Ros
                 advertisedTopics.Remove(pub);
             }
 
-            await UnregisterPublisher(pub.Name);
+            await UnregisterPublisher(pub.Name).ConfigureAwait(false);
 
             return true;
         }

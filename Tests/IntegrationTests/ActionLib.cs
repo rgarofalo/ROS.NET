@@ -48,7 +48,7 @@ namespace Uml.Robotics.Ros.IntegrationTests
 
             Console.WriteLine("Wait for client and server to negotiate connection");
             bool started = actionClient.WaitForActionServerToStart(new TimeSpan(0, 0, 20));
-            Assert.Equal(true, started);
+            Assert.True(started);
 
             var goal = new FollowJointTrajectoryGoal();
             goal.trajectory = new Messages.trajectory_msgs.JointTrajectory();
