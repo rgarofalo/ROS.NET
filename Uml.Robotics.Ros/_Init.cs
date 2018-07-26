@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 #if NETCORE
 using System.Runtime.Loader;
@@ -13,9 +11,7 @@ using Microsoft.Extensions.Logging;
 
 using Uml.Robotics.XmlRpc;
 using std_msgs = Messages.std_msgs;
-using System.IO;
 using System.Threading.Tasks;
-using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros
 {
@@ -217,15 +213,28 @@ namespace Uml.Robotics.Ros
 
                 string text = (args == null || args.Length == 0) ? format.ToString() : string.Format((string)format, args);
 
-                bool printit = true;
-                if (level == RosOutAppender.ROSOUT_LEVEL.DEBUG)
+                LogLevel logLevel = LogLevel.Debug;
+                switch (level)
                 {
-    #if !DEBUG
-                    printit = false;
-    #endif
+                    case RosOutAppender.ROSOUT_LEVEL.DEBUG:
+                        logLevel = LogLevel.Debug;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.INFO:
+                        logLevel = LogLevel.Information;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.WARN:
+                        logLevel = LogLevel.Warning;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.ERROR:
+                        logLevel = LogLevel.Error;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.FATAL:
+                        logLevel = LogLevel.Critical;
+                        break;
                 }
-                if (printit)
-                    logger.LogDebug(ROSOUT_FMAT, ROSOUT_PREFIX[level], text);
+
+                logger.Log(logLevel, ROSOUT_FMAT, ROSOUT_PREFIX[level], text);
+
                 RosOutAppender.Instance.Append(text, level, callerInfo);
             }
         }

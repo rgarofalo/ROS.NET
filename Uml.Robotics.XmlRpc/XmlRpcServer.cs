@@ -180,7 +180,7 @@ namespace Uml.Robotics.XmlRpc
             string response = "";
             XmlRpcValue parms = new XmlRpcValue(), resultValue = new XmlRpcValue();
             string methodName = ParseRequest(parms, request);
-            logger.LogWarning("XmlRpcServerConnection::ExecuteRequest: server calling method '{0}'", methodName);
+            logger.LogDebug("XmlRpcServerConnection::ExecuteRequest: server calling method '{0}'", methodName);
 
             try
             {
@@ -192,7 +192,7 @@ namespace Uml.Robotics.XmlRpc
             }
             catch (XmlRpcException fault)
             {
-                logger.LogWarning(fault, "XmlRpcServerConnection::ExecuteRequest: fault {0}.", fault.Message);
+                logger.LogWarning(fault, "XmlRpcServerConnection::ExecuteRequest: fault {0}", fault.Message);
                 response = GenerateFaultResponse(fault.Message, fault.ErrorCode);
             }
             return response;

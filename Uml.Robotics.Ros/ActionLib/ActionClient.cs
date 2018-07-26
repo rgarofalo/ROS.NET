@@ -1,22 +1,15 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
-
-using Messages;
-using Messages.actionlib_msgs;
+﻿using Messages.actionlib_msgs;
 using Messages.std_msgs;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
-using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
-using Xamla.Robotics.Ros.Async;
 
 namespace Uml.Robotics.Ros.ActionLib
 {
     public class ActionClient<TGoal, TResult, TFeedback>
         : IActionClient<TGoal, TResult, TFeedback>
-        , IDisposable
         where TGoal : InnerActionMessage, new()
         where TResult : InnerActionMessage, new()
         where TFeedback : InnerActionMessage, new()
@@ -36,7 +29,6 @@ namespace Uml.Robotics.Ros.ActionLib
         public int? PreemptTimeout { get; set; } = null;
         public TimeSpan ActionServerWaitTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
-        private readonly ILogger logger = ApplicationLogging.CreateLogger<ActionClient<TGoal, TResult, TFeedback>>();
         private readonly object gate = new object();
 
         private NodeHandle nodeHandle;
@@ -166,6 +158,12 @@ namespace Uml.Robotics.Ros.ActionLib
 
         public void Shutdown()
         {
+            Dispose();
+        }
+
+
+        public void Dispose()
+        {
             ROS.RosShuttingDown -= ROS_RosShuttingDown;
 
             statusSubscriber?.Dispose();
@@ -177,22 +175,31 @@ namespace Uml.Robotics.Ros.ActionLib
         }
 
 
-        void IDisposable.Dispose()
+        private bool CheckActionServerStatusAndLog()
         {
-            Shutdown();
+            lock (gate)
+            {
+                if (IsServerConnected())
+                    return true;
+
+                ROS.Warn()($"ActionServer {this.Name} is not ready (status received: {statusReceived}; callerId: {statusCallerId}; "
+                    + $"goal: {statusCallerId != null && goalSubscriberCount.ContainsKey(statusCallerId)} ({goalSubscriberCount.Count}); "
+                    + $"cancel: {statusCallerId != null && cancelSubscriberCount.ContainsKey(statusCallerId)} ({cancelSubscriberCount.Count}); "
+                    + $"feedback: {feedbackSubscriber.NumPublishers}; result: {resultSubscriber.NumPublishers}).");
+            }
+
+            return false;
         }
 
-
         /// <summary>
-        /// Waits for the ActionServer to connect to this client. Note: This expects the callback queue to be threaded, it does
-        /// not spin the callbacks.
+        /// Waits for the ActionServer to connect to this client.
         /// Often, it can take a second for the action server &amp; client to negotiate
-        /// a connection, thus, risking the first few goals to be dropped.This call lets
+        /// a connection, thus, risking the first few goals to be dropped. This call lets
         /// the user wait until the network connection to the server is negotiated
         /// NOTE: Using this call in a single threaded ROS application, or any
         /// application where the action client's callback queue is not being
-        /// serviced, will not work.Without a separate thread servicing the queue, or
-        /// a multi-threaded spinner, there is no way for the client to tell whether
+        /// serviced, will not work. Without a separate thread servicing the queue, or
+        /// an AsyncSpinner, there is no way for the client to tell whether
         /// or not the server is up because it can't receive a status message.
         /// </summary>
         /// <param name="timeout">Max time to block before returning. A null timeout is interpreted as an infinite timeout.</param>
@@ -203,29 +210,24 @@ namespace Uml.Robotics.Ros.ActionLib
             while (ROS.OK)
             {
                 if (IsServerConnected())
-                {
                     return true;
-                }
 
                 if (timeout != null)
                 {
                     var toc = DateTime.UtcNow;
-                    if (toc - tic > timeout)
-                    {
-                        return false;
-                    }
+                    TimeSpan elapsed = toc - tic;
+                    if (elapsed > timeout)
+                        break;
                 }
 
                 Thread.Sleep(1);
             }
 
-            return false;
+            return CheckActionServerStatusAndLog();
         }
 
-
         /// <summary>
-        /// Waits for the ActionServer to connect to this client. Note: This expects the callback queue to be threaded, it does
-        /// not spin the callbacks.
+        /// Waits for the ActionServer to connect to this client.
         /// Often, it can take a second for the action server &amp; client to negotiate
         /// a connection, thus, risking the first few goals to be dropped.This call lets
         /// the user wait until the network connection to the server is negotiated
@@ -240,37 +242,26 @@ namespace Uml.Robotics.Ros.ActionLib
         public async Task<bool> WaitForActionServerToStartAsync(TimeSpan? timeout = null, CancellationToken cancel = default(CancellationToken))
         {
             var tic = DateTime.UtcNow;
-            TimeSpan elapsed;
-
             while (ROS.OK)
             {
-                var toc = DateTime.UtcNow;
-                elapsed = toc - tic;
-
                 if (IsServerConnected())
                     return true;
 
                 if (cancel.IsCancellationRequested)
                     break;
 
-                if (timeout != null && elapsed > timeout)
-                    break;
+                if (timeout != null)
+                {
+                    var toc = DateTime.UtcNow;
+                    TimeSpan elapsed = toc - tic;
+                    if (elapsed > timeout)
+                        break;
+                }
 
-                await Task.Delay(1).ConfigureAwait(false);
+                await Task.Delay(5).ConfigureAwait(false);
             }
 
-            lock (gate)
-            {
-                if (IsServerConnected())
-                    return true;
-
-                logger.LogWarning($"ActionServer {this.Name} not ready (status received: {statusReceived}; callerId: {statusCallerId}; "
-                    + $"goal: {statusCallerId != null && goalSubscriberCount.ContainsKey(statusCallerId)} ({goalSubscriberCount.Count}); "
-                    + $"cancel: {statusCallerId != null && cancelSubscriberCount.ContainsKey(statusCallerId)} ({cancelSubscriberCount.Count}); "
-                    + $"feedback: {feedbackSubscriber.NumPublishers}; result: {resultSubscriber.NumPublishers}).");
-            }
-
-            return false;
+            return CheckActionServerStatusAndLog();
         }
 
 
@@ -284,24 +275,21 @@ namespace Uml.Robotics.Ros.ActionLib
             while (ROS.OK)
             {
                 if (IsServerConnected())
-                {
                     return true;
-                }
 
                 if (timeout != null)
                 {
                     var toc = DateTime.UtcNow;
-                    if (toc - tic > timeout)
-                    {
-                        return false;
-                    }
+                    TimeSpan elapsed = toc - tic;
+                    if (elapsed > timeout)
+                        break;
                 }
 
                 spinner.SpinOnce();
                 Thread.Sleep(1);
             }
 
-            return false;
+            return CheckActionServerStatusAndLog();
         }
 
 
@@ -627,7 +615,7 @@ namespace Uml.Robotics.Ros.ActionLib
         {
             if (!await this.WaitForActionServerToStartAsync(this.ActionServerWaitTimeout, cancel).ConfigureAwait(false))
             {
-                logger.LogInformation($"Action server {this.Name} is not available.");
+                ROS.Info()($"Action server {this.Name} is not available.");
                 throw new TimeoutException($"Action server {this.Name} is not available.");
             }
 
@@ -660,7 +648,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 {
                     if (goalHandle.State == CommunicationState.WAITING_FOR_GOAL_ACK)
                     {
-                        logger.LogDebug($"Goal status is null for {goalHandle.Id}, most propably because it was just send and there" +
+                        ROS.Debug()($"Goal status is null for {goalHandle.Id}, most propably because it was just send and there" +
                         $"and the server has not yet sent an update");
 
                         // if goal was not seen for thre status updates republish the goal
@@ -672,7 +660,7 @@ namespace Uml.Robotics.Ros.ActionLib
                     }
                     else if (goalHandle.State == CommunicationState.WAITING_FOR_RESULT)
                     {
-                        logger.LogDebug($"Goal status is null for {goalHandle.Id}, while waiting for result. Did we miss the result?");
+                        ROS.Debug()($"Goal status is null for {goalHandle.Id}, while waiting for result. Did we miss the result?");
 
                         // the server forgot about the goal handle, but we have not received a result message
                         if (goalHandle.statusMissing > MAX_STATUS_MISSING_WAIT_RESULT)
