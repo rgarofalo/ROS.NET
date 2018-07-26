@@ -125,12 +125,12 @@ namespace Uml.Robotics.Ros
                 }
             }
 
-            await this.connection.WriteHeader(header, cancel);
+            await this.connection.WriteHeader(header, cancel).ConfigureAwait(false);
         }
 
         private async Task<IDictionary<string, string>> ReadHeader()
         {
-            var remoteHeader = await this.connection.ReadHeader(cancel);
+            var remoteHeader = await this.connection.ReadHeader(cancel).ConfigureAwait(false);
 
             if (!remoteHeader.TryGetValue("md5sum", out string md5sum))
             {
@@ -149,8 +149,8 @@ namespace Uml.Robotics.Ros
 
         private async Task<IDictionary<string, string>> Handshake()
         {
-            await WriteHeader();
-            return await ReadHeader();
+            await WriteHeader().ConfigureAwait(false);
+            return await ReadHeader().ConfigureAwait(false);
         }
 
         private async Task ProcessCall(CallInfo call)
@@ -160,11 +160,11 @@ namespace Uml.Robotics.Ros
             // serialize and send request
             request.Serialized = request.Serialize();
 
-            await connection.WriteBlock(BitConverter.GetBytes(request.Serialized.Length), 0, 4, cancel);
-            await connection.WriteBlock(request.Serialized, 0, request.Serialized.Length, cancel);
+            await connection.WriteBlock(BitConverter.GetBytes(request.Serialized.Length), 0, 4, cancel).ConfigureAwait(false);
+            await connection.WriteBlock(request.Serialized, 0, request.Serialized.Length, cancel).ConfigureAwait(false);
 
             // read response header
-            var receiveBuffer = await connection.ReadBlock(5, cancel);
+            var receiveBuffer = await connection.ReadBlock(5, cancel).ConfigureAwait(false);
 
             bool success = receiveBuffer[0] != 0;
             int responseLength = BitConverter.ToInt32(receiveBuffer, 1);
@@ -179,7 +179,7 @@ namespace Uml.Robotics.Ros
             if (responseLength > 0)
             {
                 logger.LogDebug($"Reading message with length of {responseLength}.");
-                receiveBuffer = await connection.ReadBlock(responseLength, cancel);
+                receiveBuffer = await connection.ReadBlock(responseLength, cancel).ConfigureAwait(false);
             }
             else
             {
@@ -207,12 +207,12 @@ namespace Uml.Robotics.Ros
         {
             try
             {
-                await Handshake();
+                await Handshake().ConfigureAwait(false);
 
-                while (await callQueue.MoveNext(cancel))
+                while (await callQueue.MoveNext(cancel).ConfigureAwait(false))
                 {
                     var call = callQueue.Current;
-                    await ProcessCall(call);
+                    await ProcessCall(call).ConfigureAwait(false);
                 }
 
                 connection.Socket.Shutdown(SocketShutdown.Send);
@@ -261,7 +261,7 @@ namespace Uml.Robotics.Ros
 
         public async Task<bool> Call(RosService srv)
         {
-            (bool result, RosMessage response) = await Call(srv.RequestMessage);
+            (bool result, RosMessage response) = await Call(srv.RequestMessage).ConfigureAwait(false);
             srv.ResponseMessage = response;
             return result;
         }
@@ -279,9 +279,9 @@ namespace Uml.Robotics.Ros
             try
             {
                 var call = new CallInfo { Request = request, Response = response };
-                await queue.OnNext(call, cancel);
+                await queue.OnNext(call, cancel).ConfigureAwait(false);
 
-                bool success = await call.AsyncResult;
+                bool success = await call.AsyncResult.ConfigureAwait(false);
                 if (success)
                 {
                     // response is only sent on success

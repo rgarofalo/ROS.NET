@@ -95,7 +95,7 @@ namespace Uml.Robotics.Ros
         {
             try
             {
-                var headerFields = await connection.ReadHeader(cancel);
+                var headerFields = await connection.ReadHeader(cancel).ConfigureAwait(false);
 
                 if (headerFields.ContainsKey("topic"))
                 {

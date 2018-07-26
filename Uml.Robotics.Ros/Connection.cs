@@ -81,11 +81,11 @@ namespace Uml.Robotics.Ros
 
         public async Task<IDictionary<string, string>> ReadHeader(CancellationToken cancel)
         {
-            int length = await this.ReadInt32(cancel);
+            int length = await this.ReadInt32(cancel).ConfigureAwait(false);
             if (length > MESSAGE_SIZE_LIMIT)
                 throw new ConnectionError("Invalid header length received");
 
-            byte[] headerBuffer = await this.ReadBlock(length, cancel);
+            byte[] headerBuffer = await this.ReadBlock(length, cancel).ConfigureAwait(false);
 
             if (!Header.Parse(headerBuffer, length, out string errorMessage))
             {
@@ -129,7 +129,7 @@ namespace Uml.Robotics.Ros
                 { "error", errorMessage }
             };
 
-            await WriteHeader(header, cancel);
+            await WriteHeader(header, cancel).ConfigureAwait(false);
         }
 
         public async Task WriteHeader(IDictionary<string, string> headerValues, CancellationToken cancel)
@@ -140,19 +140,19 @@ namespace Uml.Robotics.Ros
             byte[] messageBuffer = new byte[messageLength];
             Buffer.BlockCopy(BitConverter.GetBytes(headerLength), 0, messageBuffer, 0, 4);
             Buffer.BlockCopy(headerBuffer, 0, messageBuffer, 4, headerBuffer.Length);
-            await Stream.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancel);
+            await Stream.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancel).ConfigureAwait(false);
         }
 
         public async Task<int> ReadInt32(CancellationToken cancel)
         {
-            byte[] lengthBuffer = await ReadBlock(4, cancel);
+            byte[] lengthBuffer = await ReadBlock(4, cancel).ConfigureAwait(false);
             return BitConverter.ToInt32(lengthBuffer, 0);
         }
 
         public async Task<byte[]> ReadBlock(int size, CancellationToken cancel)
         {
             var buffer = new byte[size];
-            await ReadBlock(new ArraySegment<byte>(buffer), cancel);
+            await ReadBlock(new ArraySegment<byte>(buffer), cancel).ConfigureAwait(false);
             return buffer;
         }
 
@@ -160,7 +160,7 @@ namespace Uml.Robotics.Ros
         {
             using (cancel.Register(() => Stream.Close()))
             {
-                if (!await Stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel))
+                if (!await Stream.ReadBlockAsync(buffer.Array, buffer.Offset, buffer.Count, cancel).ConfigureAwait(false))
                 {
                     throw new EndOfStreamException("Connection closed gracefully");
                 }
@@ -169,14 +169,14 @@ namespace Uml.Robotics.Ros
 
         public async Task WriteBlock(ArraySegment<byte> buffer, CancellationToken cancel)
         {
-            await WriteBlock(buffer.Array, buffer.Offset, buffer.Count, cancel);
+            await WriteBlock(buffer.Array, buffer.Offset, buffer.Count, cancel).ConfigureAwait(false);
         }
 
         public async Task WriteBlock(byte[] buffer, int offset, int count, CancellationToken cancel)
         {
             using (cancel.Register(() => Stream.Close()))
             {
-                await Stream.WriteAsync(buffer, offset, count, cancel);
+                await Stream.WriteAsync(buffer, offset, count, cancel).ConfigureAwait(false);
             }
         }
     }

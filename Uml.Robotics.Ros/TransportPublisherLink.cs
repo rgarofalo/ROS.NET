@@ -65,7 +65,7 @@ namespace Uml.Robotics.Ros
                 ["type"] = Parent.DataType,
                 ["tcp_nodelay"] = "1"
             };
-            await connection.WriteHeader(header, cancel);
+            await connection.WriteHeader(header, cancel).ConfigureAwait(false);
         }
 
         private async Task HandleConnection()
@@ -73,7 +73,7 @@ namespace Uml.Robotics.Ros
             // establish connection
             using (var client = new TcpClient())
             {
-                await client.ConnectAsync(host, port);
+                await client.ConnectAsync(host, port).ConfigureAwait(false);
                 client.NoDelay = true;
 
                 try
@@ -81,9 +81,9 @@ namespace Uml.Robotics.Ros
                     this.connection = new Connection(client);
 
                     // write/read header handshake
-                    await WriteHeader();
+                    await WriteHeader().ConfigureAwait(false);
 
-                    var headerFields = await connection.ReadHeader(cancel);
+                    var headerFields = await connection.ReadHeader(cancel).ConfigureAwait(false);
                     SetHeader(new Header(headerFields));
 
                     // connection established
@@ -92,7 +92,7 @@ namespace Uml.Robotics.Ros
                     while (!cancel.IsCancellationRequested)
                     {
                         // read message length
-                        int length = await connection.ReadInt32(cancel);
+                        int length = await connection.ReadInt32(cancel).ConfigureAwait(false);
                         if (length > Connection.MESSAGE_SIZE_LIMIT)
                         {
                             var message = $"Message received in TransportPublisherLink exceeds length limit of {Connection.MESSAGE_SIZE_LIMIT}. Dropping connection";
@@ -100,7 +100,7 @@ namespace Uml.Robotics.Ros
                         }
 
                         // read message
-                        var messageBuffer = await connection.ReadBlock(length, cancel);
+                        var messageBuffer = await connection.ReadBlock(length, cancel).ConfigureAwait(false);
 
                         // deserialize message
                         RosMessage msg = RosMessage.Generate(Parent.DataType);
@@ -132,7 +132,7 @@ namespace Uml.Robotics.Ros
 
                 try
                 {
-                    await HandleConnection();
+                    await HandleConnection().ConfigureAwait(false);
                 }
                 catch (HeaderErrorException e)
                 {
@@ -155,7 +155,7 @@ namespace Uml.Robotics.Ros
                     }
 
                     // wait abortable for retry
-                    await Task.Delay(retryDelay, cancel);
+                    await Task.Delay(retryDelay, cancel).ConfigureAwait(false);
                 }
             }
         }

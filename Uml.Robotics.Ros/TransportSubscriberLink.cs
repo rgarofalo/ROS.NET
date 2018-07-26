@@ -73,18 +73,18 @@ namespace Uml.Robotics.Ros
                 // header handshake
                 try
                 {
-                    await HandleHeader(header);
+                    await HandleHeader(header).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     if (ROS.shuttingDown)
                     {
-                        await connection.SendHeaderError("ROS node shutting down", cancel);
+                        await connection.SendHeaderError("ROS node shutting down", cancel).ConfigureAwait(false);
                     }
                     else
                     {
                         logger.LogWarning(e, e.Message);
-                        await connection.SendHeaderError(e.Message, cancel);
+                        await connection.SendHeaderError(e.Message, cancel).ConfigureAwait(false);
                     }
                     connection.Close(50);
 
@@ -92,12 +92,12 @@ namespace Uml.Robotics.Ros
                 }
 
                 // read messages from queue and send them
-                while (await outbox.MoveNext(cancel))
+                while (await outbox.MoveNext(cancel).ConfigureAwait(false))
                 {
                     cancel.ThrowIfCancellationRequested();
 
                     var current = outbox.Current;
-                    await WriteMessage(current);
+                    await WriteMessage(current).ConfigureAwait(false);
                 }
             }
             finally
@@ -112,8 +112,8 @@ namespace Uml.Robotics.Ros
                 message.msg.Serialized = message.serfunc();
 
             int length = message.msg.Serialized.Length;
-            await connection.WriteBlock(BitConverter.GetBytes(length), 0, 4, cancel);
-            await connection.WriteBlock(message.msg.Serialized, 0, length, cancel);
+            await connection.WriteBlock(BitConverter.GetBytes(length), 0, 4, cancel).ConfigureAwait(false);
+            await connection.WriteBlock(message.msg.Serialized, 0, length, cancel).ConfigureAwait(false);
 
             Stats.MessagesSent++;
             Stats.BytesSent += length + 4;
@@ -157,7 +157,7 @@ namespace Uml.Robotics.Ros
                 ["latching"] = Convert.ToString(pt.Latch)
             };
 
-            await connection.WriteHeader(m, cancel);
+            await connection.WriteHeader(m, cancel).ConfigureAwait(false);
             pt.AddSubscriberLink(this);
             logger.LogDebug("Finalize transport subscriber link for " + name);
         }

@@ -194,7 +194,7 @@ namespace Uml.Robotics.Ros
 
         private async Task RunPublishLoopAsync()
         {
-            while (await publishQueue.MoveNext(cancel))
+            while (await publishQueue.MoveNext(cancel).ConfigureAwait(false))
             {
                 cancel.ThrowIfCancellationRequested();
 

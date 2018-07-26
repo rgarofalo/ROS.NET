@@ -256,7 +256,7 @@ namespace Uml.Robotics.Ros.ActionLib
                 if (timeout != null && elapsed > timeout)
                     break;
 
-                await Task.Delay(1);
+                await Task.Delay(1).ConfigureAwait(false);
             }
 
             lock (gate)
@@ -625,7 +625,7 @@ namespace Uml.Robotics.Ros.ActionLib
             CancellationToken cancel = default(CancellationToken)
         )
         {
-            if (!await this.WaitForActionServerToStartAsync(this.ActionServerWaitTimeout, cancel))
+            if (!await this.WaitForActionServerToStartAsync(this.ActionServerWaitTimeout, cancel).ConfigureAwait(false))
             {
                 logger.LogInformation($"Action server {this.Name} is not available.");
                 throw new TimeoutException($"Action server {this.Name} is not available.");
@@ -634,7 +634,7 @@ namespace Uml.Robotics.Ros.ActionLib
             var gh = this.SendGoal(goal, onTransistionCallback, onFeedbackCallback);
             using (cancel.Register(gh.Cancel))
             {
-                return await gh.GoalTask;
+                return await gh.GoalTask.ConfigureAwait(false);
             }
         }
 

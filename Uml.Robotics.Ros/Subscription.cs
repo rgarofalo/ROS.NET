@@ -237,7 +237,7 @@ namespace Uml.Robotics.Ros
                 {
                     if (XmlRpcManager.Instance.Uri != publisherUri)
                     {
-                        retval &= await NegotiateConnection(publisherUri);
+                        retval &= await NegotiateConnection(publisherUri).ConfigureAwait(false);
                     }
                 }
                 return retval;
@@ -272,7 +272,7 @@ namespace Uml.Robotics.Ros
                 pendingConnections.Add(conn);
             }
 
-            await requestTopicTask.WhenCompleted();
+            await requestTopicTask.WhenCompleted().ConfigureAwait(false);
 
             PendingConnectionDone(conn, requestTopicTask);
 

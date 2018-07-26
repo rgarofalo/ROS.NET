@@ -64,7 +64,7 @@ namespace Uml.Robotics.Ros
                 return;
 
             unadvertised = true;
-            await TopicManager.Instance.Unadvertise(topic, callbacks);
+            await TopicManager.Instance.Unadvertise(topic, callbacks).ConfigureAwait(false);
         }
 
         public void Dispose()

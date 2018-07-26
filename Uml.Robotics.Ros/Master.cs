@@ -39,7 +39,7 @@ namespace Uml.Robotics.Ros
         {
             XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             args.Set(0, ThisNode.Name);
-            return await ExecuteAsync("getPid", args, result, payload, false);
+            return await ExecuteAsync("getPid", args, result, payload, false).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace Uml.Robotics.Ros
             args.Set(0, ThisNode.Name);
             args.Set(1, "");
 
-            if (!await ExecuteAsync("getPublishedTopics", args, result, payload, true))
+            if (!await ExecuteAsync("getPublishedTopics", args, result, payload, true).ConfigureAwait(false))
             {
                 throw new Exception("getPublishedTopics failed");
             }
@@ -76,7 +76,7 @@ namespace Uml.Robotics.Ros
             XmlRpcValue args = new XmlRpcValue(), result = new XmlRpcValue(), payload = new XmlRpcValue();
             args.Set(0, ThisNode.Name);
 
-            if (!await ExecuteAsync("getSystemState", args, result, payload, true))
+            if (!await ExecuteAsync("getSystemState", args, result, payload, true).ConfigureAwait(false))
             {
                 throw new Exception("getSystemState failed");
             }
@@ -102,7 +102,7 @@ namespace Uml.Robotics.Ros
             var resp = new XmlRpcValue();
             var payl = new XmlRpcValue();
 
-            if (!await ExecuteAsync("lookupNode", args, resp, payl, true))
+            if (!await ExecuteAsync("lookupNode", args, resp, payl, true).ConfigureAwait(false))
                 return null;
 
             if (!XmlRpcManager.Instance.ValidateXmlRpcResponse("lookupNode", resp, payl))
@@ -117,14 +117,14 @@ namespace Uml.Robotics.Ros
 
         public static async Task<bool> Kill(string node)
         {
-            var cl = await ClientForNode(node);
+            var cl = await ClientForNode(node).ConfigureAwait(false);
             if (cl == null)
                 return false;
 
             XmlRpcValue req = new XmlRpcValue(), resp = new XmlRpcValue(), payl = new XmlRpcValue();
             req.Set(0, ThisNode.Name);
             req.Set(1, $"Node '{ThisNode.Name}' requests shutdown.");
-            var respose = await cl.ExecuteAsync("shutdown", req);
+            var respose = await cl.ExecuteAsync("shutdown", req).ConfigureAwait(false);
             if (!respose.Success || !XmlRpcManager.Instance.ValidateXmlRpcResponse("shutdown", respose.Value, payl))
                 return false;
 
@@ -157,7 +157,7 @@ namespace Uml.Robotics.Ros
 
                     try
                     {
-                        var result = await client.ExecuteAsync(method, request);           // execute the RPC call
+                        var result = await client.ExecuteAsync(method, request).ConfigureAwait(false);           // execute the RPC call
                         response.Set(result.Value);
                         if (result.Success)
                         {
@@ -201,7 +201,7 @@ namespace Uml.Robotics.Ros
                         }
                     }
 
-                    await Task.Delay(250);
+                    await Task.Delay(250).ConfigureAwait(false);
 
                     // recreate the client and reinitiate master connection
                     client = new XmlRpcClient(host, port);

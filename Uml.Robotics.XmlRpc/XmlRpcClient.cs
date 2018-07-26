@@ -53,7 +53,7 @@ namespace Uml.Robotics.XmlRpc
             req.Method = "POST";
             req.ContentType = "text/xml; charset=utf-8";
 
-            using (var stream = await req.GetRequestStreamAsync())
+            using (var stream = await req.GetRequestStreamAsync().ConfigureAwait(false))
             {
                 // serialize request into memory stream
                 var buffer = new MemoryStream();
@@ -62,15 +62,15 @@ namespace Uml.Robotics.XmlRpc
                 sw.Flush();
                 buffer.Position = 0;
 
-                await buffer.CopyToAsync(stream);
+                await buffer.CopyToAsync(stream).ConfigureAwait(false);
             }
 
-            using (var response = await req.GetResponseAsync())
+            using (var response = await req.GetResponseAsync().ConfigureAwait(false))
             {
                 var encoding = Encoding.UTF8;
                 using (var reader = new StreamReader(response.GetResponseStream(), encoding))
                 {
-                    var responseText = await reader.ReadToEndAsync();
+                    var responseText = await reader.ReadToEndAsync().ConfigureAwait(false);
                     return ParseResponse(responseText);
                 }
             }

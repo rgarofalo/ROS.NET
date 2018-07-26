@@ -51,7 +51,7 @@ namespace Uml.Robotics.Ros
         ///     Shutdown a subscriber gracefully.
         /// </summary>
         public override async Task Shutdown() =>
-            await Unsubscribe();
+            await Unsubscribe().ConfigureAwait(false);
     }
 
     public abstract class ISubscriber : IDisposable
@@ -79,7 +79,7 @@ namespace Uml.Robotics.Ros
             if (!unsubscribed)
             {
                 unsubscribed = true;
-                await TopicManager.Instance.Unsubscribe(topic, helper);
+                await TopicManager.Instance.Unsubscribe(topic, helper).ConfigureAwait(false);
             }
         }
 
