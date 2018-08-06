@@ -153,14 +153,16 @@ namespace FauxMessages
                 string prefix = "", suffix = "";
                 if (isconst)
                 {
-                    if (!type.Equals("string", StringComparison.OrdinalIgnoreCase))
-                    {
+                    // why can't strings be constants?
+
+                    //if (!type.Equals("string", StringComparison.OrdinalIgnoreCase))
+                    //{
                         if (KnownStuff.IsPrimitiveType(this))
                             prefix = "const ";
                         else
                             prefix = "static readonly ";
                         wantsconstructor = false;
-                    }
+                    //}
                 }
 
                 string t = KnownStuff.GetNamespacedType(this, type);
@@ -271,10 +273,12 @@ namespace FauxMessages
                 string prefix = "", suffix = "";
                 if (isconst)
                 {
-                    if (!Type.Equals("string", StringComparison.OrdinalIgnoreCase))
-                    {
+                    // why can't strings be constants?
+
+                    //if (!Type.Equals("string", StringComparison.OrdinalIgnoreCase))
+                    //{
                         prefix = "const ";
-                    }
+                    //}
                 }
                 if (otherstuff.Contains('='))
                     if (wantsconstructor)
