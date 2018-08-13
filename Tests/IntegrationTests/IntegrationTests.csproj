@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Messages\Messages.csproj" />
+    <ProjectReference Include="..\..\Uml.Robotics.Ros.Messages\Uml.Robotics.Ros.Messages.csproj" />
     <ProjectReference Include="..\..\Uml.Robotics.Ros\Uml.Robotics.Ros.csproj" />
     <ProjectReference Include="..\Uml.Robotics.Ros.UnitTests\Uml.Robotics.Ros.UnitTests.csproj" />
   </ItemGroup>

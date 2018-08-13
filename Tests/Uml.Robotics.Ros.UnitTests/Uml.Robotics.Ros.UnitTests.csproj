@@ -16,7 +16,7 @@
   <ItemGroup>
     <PackageReference Include="System.Threading.ThreadPool" Version="4.3.0" />
     <PackageReference Include="System.IO.FileSystem" Version="4.3.0" />
-    <ProjectReference Include="..\..\Messages\Messages.csproj" />
+    <ProjectReference Include="..\..\Uml.Robotics.Ros.Messages\Uml.Robotics.Ros.Messages.csproj" />
     <ProjectReference Include="..\..\Uml.Robotics.Ros.Transforms\Uml.Robotics.Ros.Transforms.csproj" />
 
     <ProjectReference Include="..\..\Uml.Robotics.Ros\Uml.Robotics.Ros.csproj" />

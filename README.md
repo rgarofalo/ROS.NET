@@ -2,15 +2,12 @@
 
 This fork is a modified version of ROS.NET that builds and runs on Windows and Linux with .NET Core 1.1 SDK installed. Beside changes required to compile the solution for .NET core the project was completely restructured (e.g. folder structure, assembly names). A couple of bugs were fixed and offensive exception messages and comments of the original implementation were replaced by more serious ones.
 
-## .NET Core 1.1 Build Instructions
+## .NET Core 2.1 Build Instructions
 
 1. `cd YAMLParser`
-2. `dotnet restore`
-3. `dotnet build`
-4. `dotnet run -- Debug <YourPathToSolutionRoot>`
-5. `cd ..`
-5. `dotnet restore Uml.Robotics.Ros.sln`
-6. `dotnet build Uml.Robotics.Ros.sln` (build should succeed now)
+2. `dotnet run -f netcoreapp2.1 -- -m ../ -r Release -n Uml.Robotics.Ros.Messages -o ../Uml.Robotics.Ros.Messages`
+3. `cd ..`
+4. `dotnet build -f netcoreapp2.1 Uml.Robotics.Ros.sln`
 
 
 ##  ==== Original Readme text ======

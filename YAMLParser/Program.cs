@@ -404,7 +404,7 @@ namespace YAMLParser
                 Console.WriteLine(error);
 
             Console.WriteLine("Running .NET Builder...");
-            string buildArgs = "build \"" + Path.Combine(outputdir, projectName) + ".csproj\" -c " + configuration;
+            string buildArgs = "build -f netcoreapp2.1 \"" + Path.Combine(outputdir, projectName) + ".csproj\" -c " + configuration;
             proc = RunDotNet(buildArgs);
 
             output = proc.StandardOutput.ReadToEnd();
