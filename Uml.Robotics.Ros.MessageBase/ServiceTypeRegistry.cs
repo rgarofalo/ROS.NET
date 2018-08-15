@@ -1,14 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Reflection;
-using System.Text;
 using System.Threading;
 
 namespace Uml.Robotics.Ros
 {
     public class ServiceTypeRegistry
-         : TypeRegistryBase
+        : TypeRegistryBase
     {
         private static Lazy<ServiceTypeRegistry> defaultInstance = new Lazy<ServiceTypeRegistry>(LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -57,7 +55,7 @@ namespace Uml.Robotics.Ros
             }
         }
 
-        public void Reset()
+        public static void Reset()
         {
             defaultInstance = new Lazy<ServiceTypeRegistry>(LazyThreadSafetyMode.ExecutionAndPublication);
         }
