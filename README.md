@@ -1,13 +1,41 @@
-## Experimental Fork of ROS.NET for .NET Core 1.1 maintained by Xamla
+## ROS.NET Xamla Fork
 
-This fork is a modified version of ROS.NET that builds and runs on Windows and Linux with .NET Core 1.1 SDK installed. Beside changes required to compile the solution for .NET core the project was completely restructured (e.g. folder structure, assembly names). A couple of bugs were fixed and offensive exception messages and comments of the original implementation were replaced by more serious ones.
+This repository contains a significantly modified fork of the original [ROS.NET](https://github.com/uml-robotics/ROS.NET) project. Beside changes required to compile the solution for .NET core the project was completely restructured (e.g. folders, assembly names, naming convention). A lot of bugs were fixed and offensive exception messages and comments of the original implementation were replaced.
+
+The code builds and runs on Windows and Linux with .NET Core 2.1. The code also was modified to compile on .Net 4.6 but has not been tested on that runtime by Xamla.
+
+The main ROS client functionality (Publishers, Subscribers, Service Calls & Actions) are working and in daily use.
+
+## NuGet Packages
+
+To use ROS.NET in your projects simply add the [Uml.Robotics.Ros](https://www.nuget.org/packages/Uml.Robotics.Ros/) and [Uml.Robotics.Ros.Messages](https://www.nuget.org/packages/Uml.Robotics.Ros.Messages/) NuGet packages.
+
+Via dotnet CLI:
+
+```
+$ dotnet add package Uml.Robotics.Ros
+$ dotnet add package Uml.Robotics.Ros.Messages
+```
+
+For pre-release builds check: https://www.nuget.org/profiles/Xamla
+
 
 ## .NET Core 2.1 Build Instructions
 
 1. `cd YAMLParser`
-2. `dotnet run -f netcoreapp2.1 -- -m ../ -r Release -n Uml.Robotics.Ros.Messages -o ../Uml.Robotics.Ros.Messages`
+2. `dotnet run -f netcoreapp2.1 -- -m ../ -c Release -n Uml.Robotics.Ros.Messages -o ../Uml.Robotics.Ros.Messages`
 3. `cd ..`
 4. `dotnet build -f netcoreapp2.1 Uml.Robotics.Ros.sln`
+
+
+## Contributing
+
+### Bug Reports
+Please create an issue at our github repository if you find a bug. Please provide all information necessary to reproduce the bug on our side.
+
+### Pull-Requests
+If you want to create a PR we ask that you discuss your idea in andvance in an issue. This will increase the chance of your PR being merged in the end.
+
 
 
 ##  ==== Original Readme text ======
