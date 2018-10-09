@@ -1,10 +1,6 @@
-﻿using Microsoft.Extensions.DependencyModel;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Runtime.Loader;
 using System.Threading;
 
 namespace Uml.Robotics.Ros
@@ -44,7 +40,7 @@ namespace Uml.Robotics.Ros
                 var feedbackAttribute = messageInfo.GetCustomAttribute<ActionFeedbackMessageAttribute>();
                 var ignoreAttribute = messageInfo.GetCustomAttribute<IgnoreRosMessageAttribute>();
                 RosMessage message;
-                if ((goalAttribute != null) || (resultAttribute != null) || (feedbackAttribute != null) || (ignoreAttribute != null))
+                if (goalAttribute != null || resultAttribute != null || feedbackAttribute != null || ignoreAttribute != null)
                 {
                     Type actionType;
                     if (goalAttribute != null)
@@ -67,6 +63,7 @@ namespace Uml.Robotics.Ros
                     {
                         throw new InvalidOperationException($"Could create Action Message for {othertype}");
                     }
+
                     Type[] innerType = { othertype };
                     var goalMessageType = actionType.MakeGenericType(innerType);
                     message = (Activator.CreateInstance(goalMessageType)) as RosMessage;
@@ -101,7 +98,7 @@ namespace Uml.Robotics.Ros
                             $"new message: {message.MD5Sum()}.");
                     } else
                     {
-                        Logger.LogWarning($"The message of type {message.MessageType} has already been registered. Since the" +
+                        Logger.LogDebug($"The message of type {message.MessageType} has already been registered. Since the" +
                             "MD5 sums do match, the new message is ignored.");
                     }
                 }
@@ -109,7 +106,7 @@ namespace Uml.Robotics.Ros
         }
 
 
-        public void Reset()
+        public static void Reset()
         {
             defaultInstance = new Lazy<MessageTypeRegistry>(LazyThreadSafetyMode.ExecutionAndPublication);
         }

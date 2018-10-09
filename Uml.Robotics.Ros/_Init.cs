@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 #if NETCORE
 using System.Runtime.Loader;
@@ -13,9 +11,8 @@ using Microsoft.Extensions.Logging;
 
 using Uml.Robotics.XmlRpc;
 using std_msgs = Messages.std_msgs;
-using System.IO;
 using System.Threading.Tasks;
-using Xamla.Robotics.Ros.Async;
+using System.Linq;
 
 namespace Uml.Robotics.Ros
 {
@@ -28,6 +25,7 @@ namespace Uml.Robotics.Ros
 
         private static ICallbackQueue globalCallbackQueue;
         private static readonly object startMutex = new object();
+        static List<Assembly> messageAssemblies = new List<Assembly>();
 
         public static TimerManager timerManager = new TimerManager();
 
@@ -217,15 +215,28 @@ namespace Uml.Robotics.Ros
 
                 string text = (args == null || args.Length == 0) ? format.ToString() : string.Format((string)format, args);
 
-                bool printit = true;
-                if (level == RosOutAppender.ROSOUT_LEVEL.DEBUG)
+                LogLevel logLevel = LogLevel.Debug;
+                switch (level)
                 {
-    #if !DEBUG
-                    printit = false;
-    #endif
+                    case RosOutAppender.ROSOUT_LEVEL.DEBUG:
+                        logLevel = LogLevel.Debug;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.INFO:
+                        logLevel = LogLevel.Information;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.WARN:
+                        logLevel = LogLevel.Warning;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.ERROR:
+                        logLevel = LogLevel.Error;
+                        break;
+                    case RosOutAppender.ROSOUT_LEVEL.FATAL:
+                        logLevel = LogLevel.Critical;
+                        break;
                 }
-                if (printit)
-                    logger.LogDebug(ROSOUT_FMAT, ROSOUT_PREFIX[level], text);
+
+                logger.Log(logLevel, ROSOUT_FMAT, ROSOUT_PREFIX[level], text);
+
                 RosOutAppender.Instance.Append(text, level, callerInfo);
             }
         }
@@ -276,6 +287,42 @@ namespace Uml.Robotics.Ros
         }
 
         /// <summary>
+        /// Registers a dynamically loaded message assembly. All message assemblies that are referenced from the entry assembly
+        /// automatically processed.
+        /// </summary>
+        /// <param name="assembly"> the assembly to scan for ROS message and service types </param>
+        public static void RegisterMessageAssembly(Assembly assembly)
+        {
+            lock (typeof(ROS))
+            {
+                if (messageAssemblies.Contains(assembly))
+                    return;
+
+                messageAssemblies.Add(assembly);
+
+                if (initialized)
+                {
+                    MessageTypeRegistry.Default.ParseAssemblyAndRegisterRosMessages(assembly);
+                    ServiceTypeRegistry.Default.ParseAssemblyAndRegisterRosServices(assembly);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes an assembly from the internal list of dynamically loaded message assemblies.
+        /// If ROS is already running the removal becomes effective after ROS has been shut down (e.g.
+        /// the messages from that assembly are not available when ROS is initialized again).
+        /// </summary>
+        /// <param name="assembly"> the assembly to remove </param>
+        public static void UnregisterMessageAssembly(Assembly assembly)
+        {
+            lock (typeof(ROS))
+            {
+                messageAssemblies.Remove(assembly);
+            }
+        }
+
+        /// <summary>
         /// Initializes ROS
         /// </summary>
         /// <param name="remappingArgs"> dictionary of remapping args </param>
@@ -321,8 +368,8 @@ namespace Uml.Robotics.Ros
                 // run the actual ROS initialization
                 if (!initialized)
                 {
-                    MessageTypeRegistry.Default.Reset();
-                    ServiceTypeRegistry.Default.Reset();
+                    MessageTypeRegistry.Reset();
+                    ServiceTypeRegistry.Reset();
                     var msgRegistry = MessageTypeRegistry.Default;
                     var srvRegistry = ServiceTypeRegistry.Default;
 
@@ -330,7 +377,10 @@ namespace Uml.Robotics.Ros
                     msgRegistry.ParseAssemblyAndRegisterRosMessages(typeof(RosMessage).GetTypeInfo().Assembly);
 
                     // Load RosMessages from all assemblies that reference Uml.Robotics.Ros.MessageBas
-                    var candidates = MessageTypeRegistry.GetCandidateAssemblies("Uml.Robotics.Ros.MessageBase");
+                    var candidates = MessageTypeRegistry.GetCandidateAssemblies("Uml.Robotics.Ros.MessageBase")
+                        .Concat(messageAssemblies)
+                        .Distinct();
+
                     foreach (var assembly in candidates)
                     {
                         logger.LogDebug($"Parse assembly: {assembly.Location}");
@@ -374,7 +424,7 @@ namespace Uml.Robotics.Ros
         /// <summary>
         ///     This is called when rosnode kill is invoked
         /// </summary>
-        /// <param name="p"> pointer to unmanaged XmlRpcValue containing params </param>
+        /// <param name="parms"> pointer to unmanaged XmlRpcValue containing params </param>
         /// <param name="r"> pointer to unmanaged XmlRpcValue that will contain return value </param>
         private static void ShutdownCallback(XmlRpcValue parms, XmlRpcValue r)
         {

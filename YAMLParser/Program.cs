@@ -1,26 +1,27 @@
-﻿using System;
+﻿using FauxMessages;
+using McMaster.Extensions.CommandLineUtils;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using FauxMessages;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
 using System.Reflection;
+using System.Threading;
 using Uml.Robotics.Ros;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.CommandLineUtils;
 
 namespace YAMLParser
 {
     internal class Program
     {
+        const string DEFAULT_OUTPUT_FOLDERNAME = "Uml.Robotics.Ros.Messages";
+        const string DEFAULT_PROJECT_NAME = "Uml.Robotics.Ros.Messages";
+
         static List<MsgFile> msgsFiles = new List<MsgFile>();
         static List<SrvFile> srvFiles = new List<SrvFile>();
         static List<ActionFile> actionFiles = new List<ActionFile>();
         private static ILogger Logger { get; set; }
-        const string DEFAULT_OUTPUT_FOLDERNAME = "Messages";
 
         public static void Main(params string[] args)
         {
@@ -30,9 +31,9 @@ namespace YAMLParser
             CommandOption assemblies = app.Option("-a|--assemblies", "Full filename of assemblies that contain additional generated RosMessages. (optional)", CommandOptionType.MultipleValue);
             CommandOption interactive = app.Option("-i|--interactive", "Run in interactive mode. Default: false", CommandOptionType.NoValue);
             // Change of output directory requires more work, since the reference to Uml.Robotics.Ros.MessageBase needs to be adjusted
-            CommandOption outputDirectory = app.Option("-o|--output", "Output directory for generated message. Default: ../Messages", CommandOptionType.SingleValue);
-            CommandOption runtime = app.Option("-r|--runtime", "Specify runtime, e.g. Debug or Release. Default: Debug", CommandOptionType.SingleValue);
-            CommandOption projectName = app.Option("-n|--name", "Name of the generated project file. Default: Messages", CommandOptionType.SingleValue);
+            CommandOption outputDirectory = app.Option("-o|--output", "Output directory for generated message. Default: ../Uml.Robotics.Ros.Messages", CommandOptionType.SingleValue);
+            CommandOption runtime = app.Option("-c|--config", "Specify build-configuration, e.g. Debug or Release. Default: Debug", CommandOptionType.SingleValue);
+            CommandOption projectName = app.Option("-n|--name", "Name of the generated project file. Default: Uml.Robotics.Ros.Messages", CommandOptionType.SingleValue);
 
             app.HelpOption("-? | -h | --help");
 
@@ -51,7 +52,7 @@ namespace YAMLParser
                     outputDirectory.HasValue() ? outputDirectory.Value() : null,
                     interactive.HasValue(),
                     runtime.HasValue() ? runtime.Value() : "Debug",
-                    projectName.HasValue() ? projectName.Value() : "Messages"
+                    projectName.HasValue() ? projectName.Value() : DEFAULT_PROJECT_NAME
                 );
 
                 return 0;
@@ -102,9 +103,9 @@ namespace YAMLParser
   <ItemGroup>
     <Reference Include=""Messages"">
       <HintPath>{assembly}</HintPath>
-  
+
       </Reference>
-  
+
     </ItemGroup>
 
   ";
@@ -393,7 +394,7 @@ namespace YAMLParser
 
             string output, error;
 
-            Console.WriteLine("Running .NET dependency restorer...");
+            Console.WriteLine("Running dotnet restore...");
             string restoreArgs = "restore \"" + Path.Combine(outputdir, projectName) + ".csproj\"";
             var proc = RunDotNet(restoreArgs);
             output = proc.StandardOutput.ReadToEnd();
@@ -403,25 +404,22 @@ namespace YAMLParser
             if (error.Length > 0)
                 Console.WriteLine(error);
 
-            Console.WriteLine("Running .NET Builder...");
-            string buildArgs = "build \"" + Path.Combine(outputdir, projectName) + ".csproj\" -c " + configuration;
+            Console.WriteLine("Running dotnet build...");
+            string buildArgs = "build -f netcoreapp2.1 \"" + Path.Combine(outputdir, projectName) + ".csproj\" -c " + configuration;
             proc = RunDotNet(buildArgs);
 
             output = proc.StandardOutput.ReadToEnd();
             error = proc.StandardError.ReadToEnd();
-            if (File.Exists(Path.Combine(outputdir, "bin", configuration, projectName + ".dll")))
+            proc.WaitForExit();
+
+            if (output.Length > 0)
+                Console.WriteLine(output);
+            if (error.Length > 0)
+                Console.WriteLine(error);
+
+            if (proc.ExitCode == 0)
             {
-                Console.WriteLine("\n\nGenerated DLL has been copied to:\n\t" + Path.Combine(outputdir, projectName + ".dll") + "\n\n");
-                File.Copy(Path.Combine(outputdir, "bin", configuration, projectName + ".dll"), Path.Combine(outputdir, projectName + ".dll"), true);
-                Thread.Sleep(100);
-            }
-            else
-            {
-                if (output.Length > 0)
-                    Console.WriteLine(output);
-                if (error.Length > 0)
-                    Console.WriteLine(error);
-                Console.WriteLine("Build was not successful");
+                Console.WriteLine("ROS Messages .Net assembly was successfully built.");
             }
         }
 

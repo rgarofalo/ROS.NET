@@ -18,7 +18,7 @@ namespace Uml.Robotics.XmlRpc
             }
         }
 
-        public static LogLevel ConsoleLogLevel { get; set; } = LogLevel.Information;
+        public static LogLevel ConsoleLogLevel { get; set; } = LogLevel.Warning;
 
         public static ILoggerFactory LoggerFactory
         {

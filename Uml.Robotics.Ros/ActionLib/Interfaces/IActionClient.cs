@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace Uml.Robotics.Ros.ActionLib
 {
     public interface IActionClient<TGoal, TResult, TFeedback>
+        : IDisposable
         where TGoal : InnerActionMessage, new()
         where TResult : InnerActionMessage, new()
         where TFeedback : InnerActionMessage, new()
@@ -20,6 +21,7 @@ namespace Uml.Robotics.Ros.ActionLib
         void Shutdown();
         bool WaitForActionServerToStart(TimeSpan? timeout = null);
         bool WaitForActionServerToStartSpinning(TimeSpan? timeout, SingleThreadSpinner spinner);
+        Task<bool> WaitForActionServerToStartAsync(TimeSpan? timeout = null, CancellationToken cancel = default(CancellationToken));
         bool IsServerConnected();
         int? PreemptTimeout { get; }
         Task<TResult> SendGoalAsync(
